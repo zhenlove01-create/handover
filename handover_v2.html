@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>臻愛一生 · 交接系統</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+body{font-family:-apple-system,BlinkMacSystemFont,'Noto Sans TC','PingFang TC',sans-serif;background:#F0F4F0;min-height:100vh}
+button{cursor:pointer;font-family:inherit}
+input,textarea,select{font-family:inherit;outline:none}
+textarea{resize:vertical}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+<script>
+// ★ 設定區 — 僅需修改此區塊 ★
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyBgk1HldJWelo6PIEmyS9SX3P6OYYHCB4Y",
+  authDomain: "zhenai-handover.firebaseapp.com",
+  databaseURL: "https://zhenai-handover-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "zhenai-handover",
+  storageBucket: "zhenai-handover.firebasestorage.app",
+  messagingSenderId: "432069396790",
+  appId: "1:432069396790:web:d16125628eb285608fcb97"
+};
+// ★ 所有主管 Gmail（可多個）
+const MANAGER_EMAILS = ["zhenlove01@gmail.com","f0907946166@gmail.com@gmail.com","f0907946166@gmail.com@gmail.com"];
+// ★ 員工名單（新員工：加名字重新上傳）
+const STAFF_NAMES = ["韋霆","佳妤","秀鳳","一婷","容綺","丞興","明峰","巧伶","鎬宇","曉峰"];
+
+const CONFIG_READY = !Object.values(FIREBASE_CONFIG).some(v => v.startsWith("貼上"));
+let db = null, fbAuth = null;
+if (CONFIG_READY) {
+  try { firebase.initializeApp(FIREBASE_CONFIG); db = firebase.database(); fbAuth = firebase.auth(); }
+  catch(e) { console.error("Firebase init error:", e); }
+}
+</script>
+<script type="text/babel" src="data:text/plain,"></script>
+<script type="text/babel">
+const{useState,useEffect}=React;
+const PRIMARY="#0F6E56",MGR_COLOR="#1A237E";
+const CATS={clinic:{l:"診所",c:"#991B1B",bg:"#FEF2F2"},hotel:{l:"旅館",c:"#92400E",bg:"#FFFBEB"},grooming:{l:"美容",c:"#5B21B6",bg:"#F5F3FF"},rehab:{l:"復健/泳池",c:"#075985",bg:"#F0F9FF"},cleaning:{l:"清潔",c:"#065F46",bg:"#ECFDF5"},admin:{l:"行政",c:"#374151",bg:"#F9FAFB"}};
+const ST={pending:{l:"待確認",c:"#92400E",dot:"#F59E0B"},confirmed:{l:"執行中",c:"#1E40AF",dot:"#3B82F6"},completed:{l:"已完成",c:"#065F46",dot:"#10B981"},overdue:{l:"逾時",c:"#991B1B",dot:"#EF4444"}};
+const DAY_TW=["日","一","二","三","四","五","六"];
+const ASSIGN_OPTS=[{v:"shift_day",l:"早班全體"},{v:"shift_night",l:"晚班全體"},{v:"duty_day",l:"早班值日生"},{v:"duty_night",l:"晚班值日生"},{v:"person",l:"指定員工"},{v:"all",l:"所有人"}];
+const todayKey=()=>new Date().toISOString().slice(0,10);
+const fmtDt=ts=>ts?new Date(ts).toLocaleString("zh-TW",{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"}):"—";
+function calcStatus(t){if(!t)return"pending";if(t.status==="completed"||t.overdueOverride)return"completed";if(!t.deadline)return t.status||"pending";const[h,m]=t.deadline.split(":").map(Number);const dl=new Date();dl.setHours(h,m,0,0);return new Date()>dl?"overdue":(t.status||"pending");}
+function getWeekDates(off=0){const d=new Date();d.setDate(d.getDate()+off*7);const dow=d.getDay();const mon=new Date(d);mon.setDate(d.getDate()-dow+(dow===0?-6:1));return Array.from({length:7},(_,i)=>{const nd=new Date(mon);nd.setDate(mon.getDate()+i);return nd.toISOString().slice(0,10);});}
+const fmtDate=d=>{const dt=new Date(d+"T00:00:00");return`${dt.getMonth()+1}/${dt.getDate()}（${DAY_TW[dt.getDay()]}）`;};
+const dbGet=(p)=>db.ref(p).once("value").then(s=>s.val());
+const dbSet=(p,v)=>db.ref(p).set(v);
+const dbUpd=(p,v)=>db.ref(p).update(v);
+const dbPush=(p,v)=>db.ref(p).push(v);
+
+function Badge({cat}){const c=CATS[cat]||CATS.admin;return<span style={{fontSize:11,fontWeight:600,padding:"2px 8px",borderRadius:10,background:c.bg,color:c.c,whiteSpace:"nowrap"}}>{c.l}</span>;}
+function SDot({status}){const s=ST[status]||ST.pending;return<span style={{display:"flex",alignItems:"center",gap:5,fontSize:12,color:s.c,whiteSpace:"nowrap"}}><span style={{width:7,height:7,borderRadius:"50%",background:s.dot,display:"inline-block",flexShrink:0}}/>{s.l}</span>;}
+function Pill({label,color,bg}){return<span style={{fontSize:11,fontWeight:600,padding:"3px 10px",borderRadius:10,background:bg,color,whiteSpace:"nowrap"}}>{label}</span>;}
+function Online({on}){return<span style={{width:7,height:7,borderRadius:"50%",background:on?"#4ADE80":"#9CA3AF",display:"inline-block",flexShrink:0}}/>;}
+
+function TodayScheduleBar({sched,currentUid}){
+  if(!sched)return null;
+  const dm=Object.values(sched.day?.members||{}),nm=Object.values(sched.night?.members||{});
+  const isDay=!!sched.day?.members?.[currentUid],isNight=!!sched.night?.members?.[currentUid];
+  const isDutyDay=sched.day?.dutyOfficer===currentUid,isDutyNight=sched.night?.dutyOfficer===currentUid;
+  return(
+    <div style={{background:"#fff",border:"0.5px solid #E5E7EB",borderRadius:10,padding:"12px 14px",marginBottom:14}}>
+      <div style={{fontSize:12,fontWeight:600,color:"#9CA3AF",marginBottom:8}}>今日排班</div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+        <div>
+          <div style={{fontSize:12,color:"#1565C0",fontWeight:600,marginBottom:4}}>早班</div>
+          {dm.length?dm.map(name=>(
+            <div key={name} style={{fontSize:13,color:"#374151",display:"flex",alignItems:"center",gap:4,marginBottom:2}}>
+              {name}{sched.day?.dutyOfficerName===name&&<span style={{fontSize:10,fontWeight:700,background:"#1565C0",color:"#fff",borderRadius:4,padding:"1px 5px"}}>值</span>}
+            </div>
+          )):<div style={{fontSize:12,color:"#9CA3AF"}}>未排班</div>}
+        </div>
+        <div>
+          <div style={{fontSize:12,color:MGR_COLOR,fontWeight:600,marginBottom:4}}>晚班</div>
+          {nm.length?nm.map(name=>(
+            <div key={name} style={{fontSize:13,color:"#374151",display:"flex",alignItems:"center",gap:4,marginBottom:2}}>
+              {name}{sched.night?.dutyOfficerName===name&&<span style={{fontSize:10,fontWeight:700,background:MGR_COLOR,color:"#fff",borderRadius:4,padding:"1px 5px"}}>值</span>}
+            </div>
+          )):<div style={{fontSize:12,color:"#9CA3AF"}}>未排班</div>}
+        </div>
+      </div>
+      {(isDay||isNight)&&<div style={{marginTop:10,paddingTop:10,borderTop:"0.5px solid #F3F4F6",display:"flex",gap:6,flexWrap:"wrap"}}>
+        <span style={{fontSize:11,color:"#9CA3AF"}}>你今天：</span>
+        {isDay&&<Pill label={`🌅 早班${isDutyDay?" · 值日生":""}`} color="#1565C0" bg="#EFF6FF"/>}
+        {isNight&&<Pill label={`🌙 晚班${isDutyNight?" · 值日生":""}`} color="#5B21B6" bg="#F5F3FF"/>}
+      </div>}
+    </div>
+  );
+}
+
+function TaskCard({task,currentUser,isManager,onConfirm,onComplete,onOverride}){
+  const[open,setOpen]=useState(false);const[orMode,setOrMode]=useState(false);const[orReason,setOrReason]=useState("");
+  const st=calcStatus(task);const isOwn=task.assignedUids&&!!task.assignedUids[currentUser.uid];const canAct=isOwn||isManager;
+  const canConfirm=canAct&&onConfirm&&(task.status==="pending"||!task.status);
+  const canComplete=canAct&&onComplete&&task.status==="confirmed";
+  const canOverride=isManager&&st==="overdue"&&onOverride;
+  return(
+    <div style={{background:"#fff",border:`0.5px solid ${st==="overdue"?"#FECACA":"#E5E7EB"}`,borderLeft:`3px solid ${ST[st]?.dot||"#9CA3AF"}`,borderRadius:10,marginBottom:10,overflow:"hidden"}}>
+      <div style={{padding:"12px 14px",cursor:"pointer"}} onClick={()=>setOpen(o=>!o)}>
+        <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:8}}>
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:5,flexWrap:"wrap"}}>
+              <Badge cat={task.category}/>{task.priority==="urgent"&&<Pill label="緊急" color="#991B1B" bg="#FEF2F2"/>}<SDot status={st}/>{task.overdueOverride&&<Pill label="主管已核准" color="#1B5E20" bg="#E8F5E9"/>}
+            </div>
+            <div style={{fontSize:15,fontWeight:500,color:"#111",lineHeight:1.4}}>{task.title}</div>
+            <div style={{display:"flex",gap:10,marginTop:5,flexWrap:"wrap"}}>
+              <span style={{fontSize:12,color:"#9CA3AF"}}>指派：{task.assignLabel}</span>
+              {task.deadline&&<span style={{fontSize:12,color:st==="overdue"?"#991B1B":"#9CA3AF",fontWeight:st==="overdue"?600:400}}>截止 {task.deadline}</span>}
+            </div>
+          </div>
+          <span style={{fontSize:11,color:"#9CA3AF",flexShrink:0}}>{open?"▲":"▼"}</span>
+        </div>
+      </div>
+      {open&&(
+        <div style={{padding:"0 14px 14px",borderTop:"0.5px solid #F3F4F6"}}>
+          {task.detail&&<p style={{fontSize:14,color:"#4B5563",margin:"10px 0",lineHeight:1.65}}>{task.detail}</p>}
+          <div style={{fontSize:12,color:"#9CA3AF",display:"flex",flexDirection:"column",gap:3,marginBottom:12}}>
+            <span>建立：{task.createdByName} · {fmtDt(task.createdAt)}</span>
+            {task.confirmedByName&&<span>確認：{task.confirmedByName} · {fmtDt(task.confirmedAt)}</span>}
+            {task.completedByName&&<span style={{color:"#065F46",fontWeight:500}}>完成：{task.completedByName} · {fmtDt(task.completedAt)}</span>}
+            {task.overdueOverride&&<span style={{color:"#1B5E20"}}>核准：{task.overdueOverride.byName} — {task.overdueOverride.reason}</span>}
+          </div>
+          <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+            {canConfirm&&<button onClick={()=>onConfirm(task.id)} style={{flex:1,padding:"10px",background:"#1E40AF",color:"#fff",border:"none",borderRadius:8,fontSize:14,fontWeight:500,minWidth:90}}>確認收到</button>}
+            {canComplete&&<button onClick={()=>onComplete(task.id)} style={{flex:1,padding:"10px",background:"#065F46",color:"#fff",border:"none",borderRadius:8,fontSize:14,fontWeight:500,minWidth:90}}>標記完成</button>}
+            {canOverride&&!orMode&&<button onClick={()=>setOrMode(true)} style={{padding:"10px 14px",background:"#FEF3C7",color:"#92400E",border:"0.5px solid #FDE68A",borderRadius:8,fontSize:13}}>核准逾時</button>}
+          </div>
+          {orMode&&(
+            <div style={{marginTop:10,background:"#FFFDE7",border:"0.5px solid #FDE68A",borderRadius:8,padding:12}}>
+              <div style={{fontSize:13,fontWeight:500,color:"#92400E",marginBottom:8}}>請說明核准原因</div>
+              <textarea value={orReason} onChange={e=>setOrReason(e.target.value)} rows={2} placeholder="例：員工因緊急醫療事故延誤，情況合理" style={{width:"100%",padding:"8px",border:"0.5px solid #FDE68A",borderRadius:6,fontSize:13,background:"#fff"}}/>
+              <div style={{display:"flex",gap:8,marginTop:8}}>
+                <button onClick={()=>{setOrMode(false);setOrReason("");}} style={{flex:1,padding:"8px",border:"0.5px solid #D1D5DB",borderRadius:6,background:"#fff",color:"#6B7280",fontSize:13}}>取消</button>
+                <button onClick={()=>{if(!orReason.trim()){alert("請填寫核准原因");return;}onOverride(task.id,orReason);setOrMode(false);setOrReason("");}} style={{flex:2,padding:"8px",border:"none",borderRadius:6,background:"#D97706",color:"#fff",fontSize:13,fontWeight:500}}>確認核准</button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function GroupSection({title,tasks,accent,isManager,currentUser,onConfirm,onComplete,onOverride}){
+  if(!tasks.length)return null;
+  return(
+    <div style={{marginBottom:20}}>
+      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
+        <span style={{width:9,height:9,borderRadius:"50%",background:accent,display:"inline-block",flexShrink:0}}/>
+        <span style={{fontSize:13,fontWeight:500,color:"#6B7280"}}>{title}</span>
+        <span style={{fontSize:12,color:"#9CA3AF",background:"#F3F4F6",borderRadius:10,padding:"1px 7px"}}>{tasks.length}</span>
+      </div>
+      {tasks.map(t=><TaskCard key={t.id} task={t} currentUser={currentUser} isManager={isManager} onConfirm={onConfirm} onComplete={onComplete} onOverride={onOverride}/>)}
+    </div>
+  );
+}
+
+function SetupView(){return(<div style={{maxWidth:380,margin:"0 auto",padding:"48px 20px"}}><div style={{textAlign:"center",marginBottom:28}}><div style={{fontSize:44,marginBottom:10}}>⚙️</div><div style={{fontSize:19,fontWeight:600}}>尚未完成設定</div><div style={{fontSize:14,color:"#6B7280",marginTop:6,lineHeight:1.7}}>請用記事本開啟 HTML 檔案，<br/>填入設定後上傳至 GitHub Pages</div></div><div style={{background:"#F9FAFB",border:"0.5px solid #E5E7EB",borderRadius:10,padding:18,fontSize:13,color:"#374151",lineHeight:2}}><div style={{fontWeight:600,marginBottom:4}}>設定步驟</div><div>1. 填入 FIREBASE_CONFIG（7個值）</div><div>2. 填入所有主管 Gmail → MANAGER_EMAILS</div><div>3. 修改 STAFF_NAMES 員工名單</div><div>4. Firebase → Authentication → Google → 啟用</div><div>5. Authorized domains → 新增 GitHub Pages 網域</div><div>6. 上傳 index.html 至 GitHub Pages</div></div></div>);}
+
+function LoginView(){
+  const[loading,setLoading]=useState(false);const[err,setErr]=useState("");
+  const handleLogin=async()=>{setLoading(true);setErr("");try{const p=new firebase.auth.GoogleAuthProvider();await fbAuth.signInWithPopup(p);}catch(e){setErr(e.code==="auth/popup-blocked"?"請允許彈出視窗後再試":"登入失敗，請重試");setLoading(false);}};
+  return(<div style={{maxWidth:360,margin:"0 auto",padding:"72px 24px 48px"}}><div style={{textAlign:"center",marginBottom:52}}><div style={{fontSize:56,marginBottom:12}}>🐾</div><div style={{fontSize:22,fontWeight:700,color:"#111"}}>臻愛一生動物醫院</div><div style={{fontSize:15,color:"#9CA3AF",marginTop:6}}>跨班交接系統</div></div><button onClick={handleLogin} disabled={loading} style={{width:"100%",padding:"16px",border:"0.5px solid #E5E7EB",borderRadius:10,background:"#fff",color:loading?"#9CA3AF":"#374151",fontSize:16,fontWeight:500,display:"flex",alignItems:"center",justifyContent:"center",gap:12}}>{loading?"登入中...":<><svg width="20" height="20" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.35-8.16 2.35-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>使用 Google 帳號登入</>}</button>{err&&<div style={{marginTop:12,fontSize:13,color:"#991B1B",textAlign:"center"}}>{err}</div>}<div style={{marginTop:20,fontSize:12,color:"#9CA3AF",textAlign:"center",lineHeight:1.7}}>第一次登入後需選擇你的名字<br/>完成一次性綁定</div></div>);
+}
+
+function RegisterView({firebaseUser,onRegistered}){
+  const[name,setName]=useState("");const[saving,setSaving]=useState(false);
+  const isManager=MANAGER_EMAILS.includes(firebaseUser.email);
+  const handleSave=async()=>{if(!name){alert("請選擇你的名字");return;}setSaving(true);const role=isManager?"manager":"staff";await dbSet(`users/${firebaseUser.uid}`,{name,email:firebaseUser.email,role,active:true,createdAt:Date.now()});onRegistered({uid:firebaseUser.uid,name,email:firebaseUser.email,role,active:true});};
+  return(<div style={{maxWidth:360,margin:"0 auto",padding:"52px 24px"}}><div style={{textAlign:"center",marginBottom:36}}><div style={{fontSize:44,marginBottom:10}}>👋</div><div style={{fontSize:18,fontWeight:600}}>歡迎，{firebaseUser.displayName||firebaseUser.email}</div><div style={{fontSize:14,color:"#6B7280",marginTop:6}}>請選擇你在系統中的名字</div>{isManager&&<div style={{marginTop:10,background:"#E8EAF6",borderRadius:8,padding:"6px 14px",fontSize:13,color:MGR_COLOR,display:"inline-block",fontWeight:500}}>🔑 你將以主管身分登入</div>}</div><div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:28}}>{STAFF_NAMES.map(n=>(<button key={n} onClick={()=>setName(n)} style={{padding:"13px 4px",border:`1.5px solid ${name===n?PRIMARY:"#E5E7EB"}`,borderRadius:8,background:name===n?"#ECFDF5":"#fff",color:name===n?PRIMARY:"#6B7280",fontSize:15,fontWeight:name===n?600:400}}>{n}</button>))}</div><button onClick={handleSave} disabled={!name||saving} style={{width:"100%",padding:"14px",border:"none",borderRadius:8,background:name&&!saving?PRIMARY:"#E5E7EB",color:name&&!saving?"#fff":"#9CA3AF",fontSize:16,fontWeight:600}}>{saving?"儲存中...":"確認並進入系統"}</button></div>);
+}
+
+function ScheduleManager({allUsers}){
+  const[weekOff,setWeekOff]=useState(0);const[editDay,setEditDay]=useState(null);const[sched,setSched]=useState({});
+  const weekDates=getWeekDates(weekOff);const staffList=Object.values(allUsers).filter(u=>u.active!==false);
+  useEffect(()=>{Promise.all(weekDates.map(d=>dbGet(`schedules/${d}`).then(v=>[d,v]))).then(res=>{const m={};res.forEach(([d,v])=>{if(v)m[d]=v;});setSched(m);});},[weekOff]);
+  const DayEditor=({date})=>{
+    const[day,setDay]=useState({members:{},dutyOfficer:null,dutyOfficerName:""});const[night,setNight]=useState({members:{},dutyOfficer:null,dutyOfficerName:""});const[saving,setSaving]=useState(false);
+    useEffect(()=>{if(sched[date]?.day)setDay(sched[date].day);if(sched[date]?.night)setNight(sched[date].night);},[date]);
+    const toggle=(shift,uid,name)=>{const setter=shift==="day"?setDay:setNight;setter(p=>{const m={...p.members};if(m[uid]){delete m[uid];return{...p,members:m,dutyOfficer:p.dutyOfficer===uid?null:p.dutyOfficer,dutyOfficerName:p.dutyOfficer===uid?"":p.dutyOfficerName};}m[uid]=name;return{...p,members:m};});};
+    const setDuty=(shift,uid,name)=>{const setter=shift==="day"?setDay:setNight;setter(p=>({...p,dutyOfficer:p.dutyOfficer===uid?null:uid,dutyOfficerName:p.dutyOfficer===uid?"":name}));};
+    const save=async()=>{setSaving(true);const data={day,night};await dbSet(`schedules/${date}`,data);setSched(p=>({...p,[date]:data}));setSaving(false);setEditDay(null);};
+    const ShiftRow=({shift,data,label,color})=>(<div style={{marginBottom:16}}><div style={{fontSize:13,fontWeight:600,color,marginBottom:8}}>{label}</div><div style={{fontSize:12,color:"#9CA3AF",marginBottom:6}}>在班人員</div><div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:10}}>{staffList.map(u=>{const on=!!data.members[u.uid];return(<button key={u.uid} onClick={()=>toggle(shift,u.uid,u.name)} style={{padding:"7px 12px",border:`1.5px solid ${on?color:"#E5E7EB"}`,borderRadius:20,background:on?"#ECFDF5":"#fff",color:on?color:"#6B7280",fontSize:13,fontWeight:on?600:400}}>{u.name}</button>);})}</div>{Object.keys(data.members).length>0&&<><div style={{fontSize:12,color:"#9CA3AF",marginBottom:6}}>值日生（選一人）</div><div style={{display:"flex",flexWrap:"wrap",gap:6}}>{Object.entries(data.members).map(([uid,name])=>(<button key={uid} onClick={()=>setDuty(shift,uid,name)} style={{padding:"7px 12px",border:`1.5px solid ${data.dutyOfficer===uid?MGR_COLOR:"#E5E7EB"}`,borderRadius:20,background:data.dutyOfficer===uid?"#E8EAF6":"#fff",color:data.dutyOfficer===uid?MGR_COLOR:"#6B7280",fontSize:13,fontWeight:data.dutyOfficer===uid?600:400}}>{data.dutyOfficer===uid?"⭐ ":""}{name}</button>))}</div></>}</div>);
+    return(<div style={{background:"#F9FAFB",border:"0.5px solid #E5E7EB",borderRadius:10,padding:14,marginTop:8}}><ShiftRow shift="day" data={day} label="🌅 早班" color="#1565C0"/><ShiftRow shift="night" data={night} label="🌙 晚班" color={MGR_COLOR}/><div style={{display:"flex",gap:8}}><button onClick={()=>setEditDay(null)} style={{flex:1,padding:"10px",border:"0.5px solid #D1D5DB",borderRadius:8,background:"#fff",color:"#6B7280",fontSize:14}}>取消</button><button onClick={save} disabled={saving} style={{flex:2,padding:"10px",border:"none",borderRadius:8,background:PRIMARY,color:"#fff",fontSize:14,fontWeight:600}}>{saving?"儲存中...":"儲存排班"}</button></div></div>);
+  };
+  return(<div><div style={{fontSize:17,fontWeight:600,color:"#111",marginBottom:4}}>排班管理</div><div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}><button onClick={()=>setWeekOff(o=>o-1)} style={{padding:"7px 14px",border:"0.5px solid #D1D5DB",borderRadius:8,background:"#fff",color:"#374151",fontSize:14}}>‹ 上週</button><div style={{fontSize:13,color:"#6B7280"}}>{weekDates[0].slice(5).replace("-","/")} – {weekDates[6].slice(5).replace("-","/")}</div><button onClick={()=>setWeekOff(o=>o+1)} style={{padding:"7px 14px",border:"0.5px solid #D1D5DB",borderRadius:8,background:"#fff",color:"#374151",fontSize:14}}>下週 ›</button></div>{weekDates.map(date=>{const d=sched[date];const isToday=date===todayKey();const dn=Object.values(d?.day?.members||{}).join("、")||"未排班";const nn=Object.values(d?.night?.members||{}).join("、")||"未排班";return(<div key={date} style={{marginBottom:8}}><div style={{background:"#fff",border:`0.5px solid ${isToday?PRIMARY:"#E5E7EB"}`,borderRadius:10,overflow:"hidden"}}><div style={{padding:"10px 14px",display:"flex",alignItems:"center",justifyContent:"space-between",background:isToday?"#ECFDF5":"#fff",cursor:"pointer"}} onClick={()=>setEditDay(editDay===date?null:date)}><div><div style={{fontSize:14,fontWeight:600,color:isToday?PRIMARY:"#111"}}>{isToday?"📍 ":""}{fmtDate(date)}</div><div style={{fontSize:12,color:"#9CA3AF",marginTop:2,display:"flex",gap:10}}><span>🌅 {dn}{d?.day?.dutyOfficerName?` (值:${d.day.dutyOfficerName})`:""}</span><span>🌙 {nn}{d?.night?.dutyOfficerName?` (值:${d.night.dutyOfficerName})`:""}</span></div></div><span style={{fontSize:12,color:"#9CA3AF"}}>{editDay===date?"▲":"▼"}</span></div>{editDay===date&&<div style={{padding:"0 12px 12px"}}><DayEditor date={date}/></div>}</div></div>);})}</div>);
+}
+
+function StaffManager({allUsers,onRefresh}){
+  const[loading,setLoading]=useState(false);
+  const toggleActive=async(uid,current)=>{const action=current?"停用":"重新啟用";if(!confirm(`確定要${action}這位員工的帳號嗎？`))return;setLoading(true);await dbUpd(`users/${uid}`,{active:!current});onRefresh();setLoading(false);};
+  const staff=Object.values(allUsers).filter(u=>u.role!=="manager");const mgrs=Object.values(allUsers).filter(u=>u.role==="manager");
+  const UserRow=({u})=>{const isActive=u.active!==false;return(<div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 14px",borderBottom:"0.5px solid #F3F4F6",opacity:isActive?1:0.5}}><div><div style={{fontSize:14,fontWeight:500,color:"#111",display:"flex",alignItems:"center",gap:8}}>{u.name}{!isActive&&<span style={{fontSize:11,background:"#F3F4F6",color:"#9CA3AF",borderRadius:4,padding:"2px 6px"}}>已停用</span>}</div><div style={{fontSize:12,color:"#9CA3AF",marginTop:2}}>{u.email}</div></div>{u.role!=="manager"&&(<button onClick={()=>toggleActive(u.uid,isActive)} disabled={loading} style={{padding:"7px 12px",border:`0.5px solid ${isActive?"#FECACA":"#D1FAE5"}`,borderRadius:8,background:isActive?"#FEF2F2":"#ECFDF5",color:isActive?"#991B1B":"#065F46",fontSize:12,fontWeight:500}}>{isActive?"停用帳號":"重新啟用"}</button>)}</div>);};
+  return(<div><div style={{fontSize:17,fontWeight:600,color:"#111",marginBottom:4}}>員工管理</div><div style={{fontSize:13,color:"#9CA3AF",marginBottom:16,lineHeight:1.6}}>停用帳號後，該員工將無法登入系統。<br/>新增員工：在 STAFF_NAMES 加入名字後重新上傳 HTML。</div>{mgrs.length>0&&<div style={{background:"#fff",border:"0.5px solid #E5E7EB",borderRadius:10,marginBottom:12,overflow:"hidden"}}><div style={{padding:"10px 14px",background:"#E8EAF6",fontSize:13,fontWeight:600,color:MGR_COLOR}}>🔑 主管帳號</div>{mgrs.map(u=><UserRow key={u.uid} u={u}/>)}</div>}<div style={{background:"#fff",border:"0.5px solid #E5E7EB",borderRadius:10,overflow:"hidden"}}><div style={{padding:"10px 14px",background:"#F9FAFB",fontSize:13,fontWeight:600,color:"#374151"}}>👥 員工帳號</div>{staff.length?staff.map(u=><UserRow key={u.uid} u={u}/>):<div style={{padding:"20px 14px",fontSize:13,color:"#9CA3AF",textAlign:"center"}}>尚無員工帳號</div>}</div></div>);
+}
+
+function AssignView({currentUser,allUsers,onDone}){
+  const[form,setForm]=useState({title:"",detail:"",category:"clinic",priority:"normal",deadline:"",assignType:"shift_day",personUid:""});const[sched,setSched]=useState(null);const[saving,setSaving]=useState(false);
+  const up=(k,v)=>setForm(p=>({...p,[k]:v}));
+  useEffect(()=>{dbGet(`schedules/${todayKey()}`).then(s=>setSched(s));},[]);
+  const resolveAssign=()=>{const t=form.assignType;const s=sched;if(t==="shift_day"){const uids={};Object.entries(s?.day?.members||{}).forEach(([uid])=>{uids[uid]=true;});return{uids,label:`早班全體（${Object.values(s?.day?.members||{}).join("、")||"無排班"}）`};}if(t==="shift_night"){const uids={};Object.entries(s?.night?.members||{}).forEach(([uid])=>{uids[uid]=true;});return{uids,label:`晚班全體（${Object.values(s?.night?.members||{}).join("、")||"無排班"}）`};}if(t==="duty_day"){const uid=s?.day?.dutyOfficer;const name=s?.day?.dutyOfficerName||"未設定";return{uids:uid?{[uid]:true}:{},label:`早班值日生（${name}）`};}if(t==="duty_night"){const uid=s?.night?.dutyOfficer;const name=s?.night?.dutyOfficerName||"未設定";return{uids:uid?{[uid]:true}:{},label:`晚班值日生（${name}）`};}if(t==="person"){const u=allUsers[form.personUid];return{uids:form.personUid?{[form.personUid]:true}:{},label:u?.name||"請選擇員工"};}if(t==="all"){const uids={};Object.keys(allUsers).forEach(uid=>{uids[uid]=true;});return{uids,label:"所有員工"};}return{uids:{},label:""};};
+  const submit=async()=>{if(!form.title.trim()){alert("請填寫任務標題");return;}const{uids,label}=resolveAssign();if(!Object.keys(uids).length&&form.assignType!=="all"){alert("指派對象無人，請先設定今日排班");return;}setSaving(true);await dbPush(`tasks/${todayKey()}`,{title:form.title.trim(),detail:form.detail.trim(),category:form.category,priority:form.priority,deadline:form.deadline||null,assignType:form.assignType,assignLabel:label,assignedUids:uids,date:todayKey(),createdBy:currentUser.uid,createdByName:currentUser.name,createdAt:Date.now(),status:"pending",confirmedBy:null,confirmedByName:null,confirmedAt:null,completedBy:null,completedByName:null,completedAt:null,overdueOverride:null});setSaving(false);setForm({title:"",detail:"",category:"clinic",priority:"normal",deadline:"",assignType:"shift_day",personUid:""});alert("任務已指派！");onDone&&onDone();};
+  const{label:ap}=resolveAssign();const inp={width:"100%",padding:"10px 12px",border:"0.5px solid #D1D5DB",borderRadius:8,fontSize:15,background:"#fff",color:"#111"};const lbl={fontSize:13,fontWeight:500,color:"#6B7280",display:"block",marginBottom:6};
+  return(<div><div style={{fontSize:17,fontWeight:600,color:"#111",marginBottom:20}}>指派新任務</div><div style={{marginBottom:16}}><span style={lbl}>部門類別</span><div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>{Object.entries(CATS).map(([k,v])=>(<button key={k} onClick={()=>up("category",k)} style={{padding:"9px 4px",border:`1.5px solid ${form.category===k?v.c:"#E5E7EB"}`,borderRadius:8,background:form.category===k?v.bg:"#fff",color:form.category===k?v.c:"#6B7280",fontSize:13,fontWeight:form.category===k?600:400}}>{v.l}</button>))}</div></div><div style={{marginBottom:16}}><span style={lbl}>優先程度</span><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>{[["normal","一般"],["urgent","緊急"]].map(([k,l])=>(<button key={k} onClick={()=>up("priority",k)} style={{padding:"10px",border:`1.5px solid ${form.priority===k?(k==="urgent"?"#991B1B":PRIMARY):"#E5E7EB"}`,borderRadius:8,background:form.priority===k?(k==="urgent"?"#FEF2F2":"#ECFDF5"):"#fff",color:form.priority===k?(k==="urgent"?"#991B1B":PRIMARY):"#6B7280",fontSize:14,fontWeight:form.priority===k?600:400}}>{l}</button>))}</div></div><div style={{marginBottom:16}}><label style={lbl}>任務標題 *</label><input value={form.title} onChange={e=>up("title",e.target.value)} placeholder="請簡短說明任務內容" style={inp}/></div><div style={{marginBottom:16}}><label style={lbl}>詳細說明</label><textarea value={form.detail} onChange={e=>up("detail",e.target.value)} rows={3} placeholder="補充說明、注意事項..." style={{...inp,minHeight:76}}/></div><div style={{marginBottom:16}}><label style={lbl}>截止時間（選填）</label><input type="time" value={form.deadline} onChange={e=>up("deadline",e.target.value)} style={{...inp,width:"auto"}}/><div style={{fontSize:12,color:"#9CA3AF",marginTop:4}}>逾時未完成會自動標示警告</div></div><div style={{marginBottom:20}}><span style={lbl}>指派對象</span><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:10}}>{ASSIGN_OPTS.map(t=>(<button key={t.v} onClick={()=>up("assignType",t.v)} style={{padding:"10px",border:`1.5px solid ${form.assignType===t.v?PRIMARY:"#E5E7EB"}`,borderRadius:8,background:form.assignType===t.v?"#ECFDF5":"#fff",color:form.assignType===t.v?PRIMARY:"#6B7280",fontSize:13,fontWeight:form.assignType===t.v?600:400}}>{t.l}</button>))}</div>{form.assignType==="person"&&<select value={form.personUid} onChange={e=>up("personUid",e.target.value)} style={{...inp,marginBottom:8}}><option value="">請選擇員工</option>{Object.values(allUsers).filter(u=>u.active!==false).map(u=>(<option key={u.uid} value={u.uid}>{u.name}</option>))}</select>}{ap&&<div style={{padding:"8px 12px",background:"#F0F9FF",border:"0.5px solid #BAE6FD",borderRadius:8,fontSize:13,color:"#075985"}}>指派給：{ap}</div>}</div><button onClick={submit} disabled={saving} style={{width:"100%",padding:"14px",border:"none",borderRadius:8,background:PRIMARY,color:"#fff",fontSize:16,fontWeight:600}}>{saving?"指派中...":"確認指派任務"}</button></div>);
+}
+
+function ManagerApp({currentUser,onSignOut}){
+  const[tab,setTab]=useState("today");const[tasks,setTasks]=useState([]);const[users,setUsers]=useState({});const[sched,setSched]=useState(null);const[online,setOnline]=useState(false);
+  const loadUsers=()=>dbGet("users").then(v=>{if(v)setUsers(Object.fromEntries(Object.entries(v).map(([uid,d])=>([uid,{...d,uid}]))));});
+  useEffect(()=>{loadUsers();dbGet(`schedules/${todayKey()}`).then(s=>setSched(s));db.ref(".info/connected").on("value",s=>setOnline(!!s.val()));const ref=db.ref(`tasks/${todayKey()}`);ref.on("value",snap=>{const v=snap.val();setTasks(v?Object.entries(v).map(([id,d])=>({...d,id})).sort((a,b)=>b.createdAt-a.createdAt):[]);});return()=>{ref.off();db.ref(".info/connected").off();};},[]);
+  const doConfirm=id=>dbUpd(`tasks/${todayKey()}/${id}`,{status:"confirmed",confirmedBy:currentUser.uid,confirmedByName:currentUser.name,confirmedAt:Date.now()});
+  const doComplete=id=>dbUpd(`tasks/${todayKey()}/${id}`,{status:"completed",completedBy:currentUser.uid,completedByName:currentUser.name,completedAt:Date.now()});
+  const doOverride=(id,reason)=>dbUpd(`tasks/${todayKey()}/${id}`,{status:"completed",completedBy:currentUser.uid,completedByName:currentUser.name,completedAt:Date.now(),overdueOverride:{by:currentUser.uid,byName:currentUser.name,reason,at:Date.now()}});
+  const live=tasks.map(t=>({...t,_st:calcStatus(t)}));const ov=live.filter(t=>t._st==="overdue");const pend=live.filter(t=>t._st==="pending");const conf=live.filter(t=>t._st==="confirmed");const done=live.filter(t=>t._st==="completed");
+  const tp={isManager:true,currentUser,onConfirm:doConfirm,onComplete:doComplete,onOverride:doOverride};
+  const TodayTab=()=>(<div><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:14}}>{[{l:"逾時",v:ov.length,c:ov.length>0?"#991B1B":undefined},{l:"待確認",v:pend.length,c:pend.length>0?"#92400E":undefined},{l:"執行中",v:conf.length,c:"#1E40AF"},{l:"已完成",v:done.length,c:"#065F46"}].map(i=>(<div key={i.l} style={{background:"#fff",border:"0.5px solid #E5E7EB",borderRadius:10,padding:"12px 14px",textAlign:"center"}}><div style={{fontSize:11,color:"#9CA3AF",marginBottom:4}}>{i.l}</div><div style={{fontSize:28,fontWeight:700,color:i.c||"#111"}}>{i.v}</div></div>))}</div><TodayScheduleBar sched={sched} currentUid={currentUser.uid}/>{ov.length>0&&<div style={{background:"#FEF2F2",border:"0.5px solid #FECACA",borderRadius:8,padding:"10px 14px",marginBottom:14,fontSize:13,color:"#991B1B"}}>⚠️ 有 {ov.length} 筆逾時任務，請確認處理情況。</div>}<GroupSection title="逾時未完成" tasks={ov} accent="#EF4444" {...tp}/><GroupSection title="待確認" tasks={pend} accent="#F59E0B" {...tp}/><GroupSection title="執行中" tasks={conf} accent="#3B82F6" {...tp}/><GroupSection title="已完成" tasks={done} accent="#10B981" {...tp}/>{!tasks.length&&<div style={{textAlign:"center",padding:"50px 20px",color:"#9CA3AF"}}><div style={{fontSize:36,marginBottom:10}}>📋</div><div style={{fontSize:15,fontWeight:500,color:"#374151"}}>今日尚無任務</div><div style={{fontSize:13,marginTop:4}}>點「指派」建立第一筆</div></div>}</div>);
+  const TABS=[{id:"today",icon:"◉",label:"今日"},{id:"assign",icon:"+",label:"指派"},{id:"schedule",icon:"📅",label:"排班"},{id:"staff",icon:"👥",label:"員工"}];
+  return(<div style={{maxWidth:520,margin:"0 auto",paddingBottom:70,minHeight:"100vh",background:"#F0F4F0"}}><div style={{background:MGR_COLOR,color:"#fff",padding:"13px 16px 11px",position:"sticky",top:0,zIndex:100}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}><div><div style={{display:"flex",alignItems:"center",gap:5,fontSize:11,opacity:0.7}}><Online on={online}/> 主管模式</div><div style={{fontSize:16,fontWeight:600,marginTop:2}}>👨‍💼 {currentUser.name}</div></div><div style={{display:"flex",gap:6,alignItems:"center"}}>{ov.length>0&&<Pill label={`${ov.length} 逾時`} color="#fff" bg="rgba(239,68,68,0.85)"/>}{pend.length>0&&<Pill label={`${pend.length} 待確認`} color="#fff" bg="rgba(245,158,11,0.85)"/>}<button onClick={onSignOut} style={{fontSize:12,color:"rgba(255,255,255,0.6)",background:"none",border:"0.5px solid rgba(255,255,255,0.25)",borderRadius:6,padding:"4px 8px"}}>登出</button></div></div></div><div style={{padding:"14px 12px 0"}}>{tab==="today"&&<TodayTab/>}{tab==="assign"&&<AssignView currentUser={currentUser} allUsers={users} onDone={()=>setTab("today")}/>}{tab==="schedule"&&<ScheduleManager allUsers={users}/>}{tab==="staff"&&<StaffManager allUsers={users} onRefresh={loadUsers}/>}</div><div style={{position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:520,background:"#fff",borderTop:"0.5px solid #E5E7EB",display:"flex",zIndex:100}}>{TABS.map(t=>(<button key={t.id} onClick={()=>setTab(t.id)} style={{flex:1,border:"none",background:"none",padding:"8px 0 10px",color:tab===t.id?MGR_COLOR:"#9CA3AF",display:"flex",flexDirection:"column",alignItems:"center",gap:2}}><span style={{fontSize:t.id==="assign"?24:18,lineHeight:1}}>{t.icon}</span><span style={{fontSize:10,fontWeight:tab===t.id?600:400}}>{t.label}</span></button>))}</div></div>);
+}
+
+function StaffApp({currentUser,onSignOut}){
+  const[tab,setTab]=useState("mine");const[tasks,setTasks]=useState([]);const[sched,setSched]=useState(null);const[online,setOnline]=useState(false);
+  useEffect(()=>{dbGet(`schedules/${todayKey()}`).then(s=>setSched(s));db.ref(".info/connected").on("value",s=>setOnline(!!s.val()));const ref=db.ref(`tasks/${todayKey()}`);ref.on("value",snap=>{const v=snap.val();setTasks(v?Object.entries(v).map(([id,d])=>({...d,id})).sort((a,b)=>b.createdAt-a.createdAt):[]);});return()=>{ref.off();db.ref(".info/connected").off();};},[]);
+  const doConfirm=id=>dbUpd(`tasks/${todayKey()}/${id}`,{status:"confirmed",confirmedBy:currentUser.uid,confirmedByName:currentUser.name,confirmedAt:Date.now()});
+  const doComplete=id=>dbUpd(`tasks/${todayKey()}/${id}`,{status:"completed",completedBy:currentUser.uid,completedByName:currentUser.name,completedAt:Date.now()});
+  const myTasks=tasks.filter(t=>t.assignedUids&&!!t.assignedUids[currentUser.uid]);const myLive=myTasks.map(t=>({...t,_st:calcStatus(t)}));const allLive=tasks.map(t=>({...t,_st:calcStatus(t)}));
+  const overdueN=myLive.filter(t=>t._st==="overdue").length;const pendingN=myLive.filter(t=>t._st==="pending").length;
+  const tp={currentUser,isManager:false,onConfirm:doConfirm,onComplete:doComplete,onOverride:null};
+  const MyTab=()=>(<div><TodayScheduleBar sched={sched} currentUid={currentUser.uid}/>{!myTasks.length?<div style={{textAlign:"center",padding:"50px 20px",color:"#9CA3AF"}}><div style={{fontSize:36,marginBottom:10}}>✅</div><div style={{fontSize:15,fontWeight:500,color:"#374151"}}>今日暫無指派給你的任務</div></div>:<><GroupSection title="逾時未完成" tasks={myLive.filter(t=>t._st==="overdue")} accent="#EF4444" {...tp}/><GroupSection title="待確認" tasks={myLive.filter(t=>t._st==="pending")} accent="#F59E0B" {...tp}/><GroupSection title="執行中" tasks={myLive.filter(t=>t._st==="confirmed")} accent="#3B82F6" {...tp}/><GroupSection title="已完成" tasks={myLive.filter(t=>t._st==="completed")} accent="#10B981" {...tp}/></>}</div>);
+  const AllTab=()=>(<div><TodayScheduleBar sched={sched} currentUid={currentUser.uid}/>{!tasks.length?<div style={{textAlign:"center",padding:"50px 20px",color:"#9CA3AF",fontSize:14}}>今日尚無任何任務</div>:<><GroupSection title="逾時未完成" tasks={allLive.filter(t=>t._st==="overdue")} accent="#EF4444" currentUser={currentUser} isManager={false} onConfirm={null} onComplete={null} onOverride={null}/><GroupSection title="待確認" tasks={allLive.filter(t=>t._st==="pending")} accent="#F59E0B" currentUser={currentUser} isManager={false} onConfirm={null} onComplete={null} onOverride={null}/><GroupSection title="執行中" tasks={allLive.filter(t=>t._st==="confirmed")} accent="#3B82F6" currentUser={currentUser} isManager={false} onConfirm={null} onComplete={null} onOverride={null}/><GroupSection title="已完成" tasks={allLive.filter(t=>t._st==="completed")} accent="#10B981" currentUser={currentUser} isManager={false} onConfirm={null} onComplete={null} onOverride={null}/></>}</div>);
+  return(<div style={{maxWidth:520,margin:"0 auto",paddingBottom:70,minHeight:"100vh",background:"#F0F4F0"}}><div style={{background:PRIMARY,color:"#fff",padding:"13px 16px 11px",position:"sticky",top:0,zIndex:100}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}><div><div style={{display:"flex",alignItems:"center",gap:5,fontSize:11,opacity:0.7}}><Online on={online}/> 臻愛一生動物醫院</div><div style={{fontSize:16,fontWeight:600,marginTop:2}}>{currentUser.name}</div></div><div style={{display:"flex",gap:6,alignItems:"center"}}>{overdueN>0&&<Pill label={`${overdueN} 逾時`} color="#fff" bg="rgba(239,68,68,0.85)"/>}{pendingN>0&&<Pill label={`${pendingN} 待確認`} color="#fff" bg="rgba(245,158,11,0.85)"/>}<button onClick={onSignOut} style={{fontSize:12,color:"rgba(255,255,255,0.6)",background:"none",border:"0.5px solid rgba(255,255,255,0.25)",borderRadius:6,padding:"4px 8px"}}>登出</button></div></div></div><div style={{padding:"14px 12px 0"}}>{tab==="mine"&&<MyTab/>}{tab==="all"&&<AllTab/>}</div><div style={{position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:520,background:"#fff",borderTop:"0.5px solid #E5E7EB",display:"flex",zIndex:100}}>{[{id:"mine",icon:"◉",label:"我的任務"},{id:"all",icon:"≡",label:"今日所有"}].map(t=>(<button key={t.id} onClick={()=>setTab(t.id)} style={{flex:1,border:"none",background:"none",padding:"8px 0 10px",color:tab===t.id?PRIMARY:"#9CA3AF",display:"flex",flexDirection:"column",alignItems:"center",gap:2}}><span style={{fontSize:18}}>{t.icon}</span><span style={{fontSize:10,fontWeight:tab===t.id?600:400}}>{t.label}</span></button>))}</div></div>);
+}
+
+function App(){
+  const[state,setState]=useState("loading");const[fbUser,setFbUser]=useState(null);const[currentUser,setCU]=useState(null);
+  useEffect(()=>{if(!CONFIG_READY||!fbAuth){setState("unauth");return;}const unsub=fbAuth.onAuthStateChanged(async fbu=>{if(!fbu){setState("unauth");setFbUser(null);setCU(null);return;}setFbUser(fbu);const data=await dbGet(`users/${fbu.uid}`);if(data){if(data.active===false){alert("你的帳號已被停用，請聯繫主管。");fbAuth.signOut();return;}setCU({...data,uid:fbu.uid});setState("authed");}else setState("registering");});return()=>unsub();},[]);
+  const handleSignOut=()=>fbAuth.signOut();
+  if(!CONFIG_READY)return<SetupView/>;
+  if(state==="loading")return(<div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",flexDirection:"column",gap:12}}><div style={{fontSize:40}}>🐾</div><div style={{fontSize:14,color:"#9CA3AF"}}>載入中...</div></div>);
+  if(state==="unauth")return<LoginView/>;
+  if(state==="registering")return<RegisterView firebaseUser={fbUser} onRegistered={u=>{setCU(u);setState("authed");}}/>;
+  if(state==="authed"&&currentUser)return currentUser.role==="manager"?<ManagerApp currentUser={currentUser} onSignOut={handleSignOut}/>:<StaffApp currentUser={currentUser} onSignOut={handleSignOut}/>;
+  return null;
+}
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+</body>
+</html>
