@@ -33,7 +33,7 @@ const FIREBASE_CONFIG={
 const MANAGER_EMAILS=["zhenlove01@gmail.com","f0907946166@gmail.com","lee910117@gmail.com","emmama5168@gmail.com","goldlee2601@gmail.com","wt2004930416@gmail.com","zhenlove03@gmail.com","hfhenrychen@gmail.com"];
 const STAFF_NAMES=["韋霆","佳妤","秀鳳","一婷","容綺","丞興","明峰","巧伶","鎬宇","曉峰","元銘"];
 // 指派「所有人」時自動排除的名單（["鎬宇","曉峰","秀鳳","明峰","巧伶"]）
-const EXCLUDE_FROM_ALL=[];
+const EXCLUDE_FROM_ALL=["鎬宇","曉峰","秀鳳","明峰","巧伶"];
 
 const CONFIG_READY=!Object.values(FIREBASE_CONFIG).some(v=>v.startsWith("貼上"));
 let db=null,fbAuth=null;
