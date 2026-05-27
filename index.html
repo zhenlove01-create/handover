@@ -387,7 +387,7 @@ function AssignView({currentUser,allUsers,onDone}){
   const[form,setForm]=useState({title:"",detail:"",category:"clinic",priority:"normal",taskDate:todayKey(),deadline:"",assignType:"shift_day",personUid:""});
   const[sched,setSched]=useState(null);const[saving,setSaving]=useState(false);const[showT,setShowT]=useState(false);
   const up=(k,v)=>setForm(p=>({...p,[k]:v}));
-  useEffect(()=>{dbGet("schedules/"+todayKey()).then(s=>setSched(s));},[]);
+  useEffect(()=>{dbGet("schedules/"+form.taskDate).then(s=>setSched(s));},[form.taskDate]);
 
   const resolve=()=>{
     const t=form.assignType,s=sched;
@@ -879,6 +879,16 @@ function App(){
   const[state,setState]=useState("loading");const[fbu,setFbu]=useState(null);const[cu,setCu]=useState(null);
   const params=new URLSearchParams(window.location.search);const kioskP=params.get("kiosk");
   if(kioskP&&CONFIG_READY)return<KioskView label={kioskP==="1F"?"1F 櫃台看板":kioskP==="2F"?"2F 櫃台看板":kioskP}/>;
+  // 凌晨自動刷新：每分鐘檢查，若日期已變更則重新載入
+  useEffect(()=>{
+    const savedDate=todayKey();
+    const midnightTimer=setInterval(()=>{
+      if(todayKey()!==savedDate){
+        window.location.reload();
+      }
+    },60000); // 每分鐘檢查一次
+    return()=>clearInterval(midnightTimer);
+  },[]);
   useEffect(()=>{
     if(!CONFIG_READY||!fbAuth){setState("unauth");return;}
     const unsub=fbAuth.onAuthStateChanged(async f=>{
