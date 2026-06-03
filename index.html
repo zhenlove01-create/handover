@@ -201,7 +201,7 @@ function TaskCard({task,currentUser,isManager,onConfirm,onComplete,onOverride,on
   </div>;
 }
 
-function GS({title,tasks,accent,isManager,currentUser,onConfirm,onComplete,onOverride}){
+function GS({title,tasks,accent,isManager,currentUser,onConfirm,onComplete,onOverride,onCancel}){
   if(!tasks.length)return null;
   return<div style={{marginBottom:20}}>
     <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
@@ -209,7 +209,7 @@ function GS({title,tasks,accent,isManager,currentUser,onConfirm,onComplete,onOve
       <span style={{fontSize:13,fontWeight:500,color:"#6B7280"}}>{title}</span>
       <span style={{fontSize:12,color:"#9CA3AF",background:"#F3F4F6",borderRadius:10,padding:"1px 7px"}}>{tasks.length}</span>
     </div>
-    {tasks.map(t=><TaskCard key={t.id} task={t} currentUser={currentUser} isManager={isManager} onConfirm={onConfirm} onComplete={onComplete} onOverride={onOverride}/>)}
+    {tasks.map(t=><TaskCard key={t.id} task={t} currentUser={currentUser} isManager={isManager} onConfirm={onConfirm} onComplete={onComplete} onOverride={onOverride} onCancel={onCancel}/>)}
   </div>;
 }
 
@@ -750,8 +750,7 @@ function MgrApp({cu,onSignOut}){
   const doCmp=(id,t)=>{const td=t.taskDate||t.date||todayKey();const st=calcStatus(t);dbUpd("tasks/"+td+"/"+id,{status:"completed",completedBy:cu.uid,completedByName:cu.name,completedAt:Date.now(),overdueCompleted:st==="overdue"});};
   const doOvr=(id,t,reason)=>{const td=t.taskDate||t.date||todayKey();dbUpd("tasks/"+td+"/"+id,{status:"completed",completedBy:cu.uid,completedByName:cu.name,completedAt:Date.now(),overdueCompleted:false,overdueOverride:{by:cu.uid,byName:cu.name,reason,at:Date.now()}});};
   const doCancel=(id,t)=>{const td=t.taskDate||t.date||todayKey();dbUpd("tasks/"+td+"/"+id,{status:"cancelled",cancelledBy:cu.uid,cancelledByName:cu.name,cancelledAt:Date.now()});};
-  const live=tasks.map(t=>({...t,_st:calcStatus(t)}));
-  const cancelled=live.filter(t=>t._st==="cancelled");
+  const live=tasks.filter(t=>calcStatus(t)!=="cancelled").map(t=>({...t,_st:calcStatus(t)}));
   const ov=live.filter(t=>t._st==="overdue"),pend=live.filter(t=>t._st==="pending"),conf=live.filter(t=>t._st==="confirmed"),done=live.filter(t=>t._st==="completed");
   const tp={isManager:true,currentUser:cu,onConfirm:doCnf,onComplete:doCmp,onOverride:doOvr,onCancel:doCancel};
   const TABS=[{id:"today",icon:"◉",l:"今日"},{id:"assign",icon:"+",l:"指派"},{id:"future",icon:"🗓",l:"未來"},{id:"schedule",icon:"📅",l:"排班"},{id:"stats",icon:"📊",l:"分析"},{id:"history",icon:"🕐",l:"歷史"},{id:"more",icon:"⋯",l:"更多"}];
@@ -778,7 +777,6 @@ function MgrApp({cu,onSignOut}){
         <GS title="待確認" tasks={pend} accent="#F59E0B" {...tp}/>
         <GS title="執行中" tasks={conf} accent="#3B82F6" {...tp}/>
         <GS title="已完成" tasks={done} accent="#10B981" {...tp}/>
-        <GS title="已取消" tasks={cancelled} accent="#D1D5DB" {...tp}/>
         {!tasks.length&&<div style={{textAlign:"center",padding:"50px 20px",color:"#9CA3AF"}}><div style={{fontSize:36,marginBottom:10}}>📋</div><div style={{fontSize:15,fontWeight:500,color:"#374151"}}>今日尚無任務</div></div>}
       </div>}
       {tab==="assign"&&<AssignView currentUser={cu} allUsers={users} onDone={()=>setTab("today")}/>}
@@ -790,7 +788,7 @@ function MgrApp({cu,onSignOut}){
         <div style={{fontSize:13,color:"#9CA3AF",marginBottom:14}}>未來 14 天內的所有已指派任務</div>
         {futureT.length===0&&<div style={{textAlign:"center",padding:"50px 20px",color:"#9CA3AF"}}><div style={{fontSize:36,marginBottom:10}}>📅</div><div style={{fontSize:15,fontWeight:500,color:"#374151"}}>未來 14 天無排定任務</div></div>}
         {futureT.length>0&&(()=>{
-          const grp={};futureT.forEach(t=>{const d=t.taskDate||t.date;if(!grp[d])grp[d]=[];grp[d].push(t);});
+          const grp={};futureT.filter(t=>calcStatus(t)!=="cancelled").forEach(t=>{const d=t.taskDate||t.date;if(!grp[d])grp[d]=[];grp[d].push(t);});
           return Object.entries(grp).sort(([a],[b])=>a.localeCompare(b)).map(([date,ts])=><div key={date} style={{marginBottom:16}}>
             <div style={{fontSize:13,fontWeight:600,color:"#075985",marginBottom:8,padding:"6px 12px",background:"#F0F9FF",borderRadius:8,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
               <span>📅 {fmtDate(date)}</span>
@@ -822,12 +820,12 @@ function StaffApp({cu,onSignOut}){
     const ref=db.ref("tasks/"+todayKey());ref.on("value",snap=>{const v=snap.val();setTodayT(v?Object.entries(v).map(([id,d])=>({...d,id})).sort((a,b)=>b.createdAt-a.createdAt):[]);});
     const futureDates=getFutureDates(15).slice(1);
     Promise.all(futureDates.map(d=>dbGet("tasks/"+d).then(v=>v?Object.entries(v).map(([id,t])=>({...t,id,date:d})):[])))
-      .then(res=>setFutureT(res.flat().filter(t=>t.assignedUids&&t.assignedUids[cu.uid])));
+      .then(res=>setFutureT(res.flat().filter(t=>t.assignedUids&&t.assignedUids[cu.uid]&&calcStatus(t)!=="cancelled")));
     return()=>{ref.off();db.ref(".info/connected").off();};
   },[]);
   const doCnf=(id,t)=>{const td=t.taskDate||t.date||todayKey();dbUpd("tasks/"+td+"/"+id,{status:"confirmed",confirmedBy:cu.uid,confirmedByName:cu.name,confirmedAt:Date.now()});};
   const doCmp=(id,t)=>{const td=t.taskDate||t.date||todayKey();const st=calcStatus(t);dbUpd("tasks/"+td+"/"+id,{status:"completed",completedBy:cu.uid,completedByName:cu.name,completedAt:Date.now(),overdueCompleted:st==="overdue"});};
-  const myT=todayT.filter(t=>t.assignedUids&&!!t.assignedUids[cu.uid]);
+  const myT=todayT.filter(t=>t.assignedUids&&!!t.assignedUids[cu.uid]&&calcStatus(t)!=="cancelled");
   const myL=myT.map(t=>({...t,_st:calcStatus(t)}));const allL=todayT.map(t=>({...t,_st:calcStatus(t)}));
   const ovN=myL.filter(t=>t._st==="overdue").length,pN=myL.filter(t=>t._st==="pending").length;
   const tp={currentUser:cu,isManager:false,onConfirm:doCnf,onComplete:doCmp,onOverride:null};
