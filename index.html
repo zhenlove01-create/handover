@@ -324,7 +324,7 @@ function TmplMgr({currentUser,onUse}){
   const[form,setForm]=useState({title:"",detail:"",category:"clinic",priority:"normal",deadline:""});
   const[impText,setImpText]=useState("");const[importing,setImporting]=useState(false);
   const up=(k,v)=>setForm(p=>({...p,[k]:v}));
-  useEffect(()=>{const ref=db.ref("templates");ref.on("value",snap=>{const v=snap.val();setTmpls(v?Object.entries(v).map(([id,d])=>({...d,id})).sort((a,b)=>a.title.localeCompare(b.title,"zh-TW")):[]); });return()=>ref.off();},[]);
+  useEffect(()=>{const ref=db.ref("templates");ref.on("value",snap=>{const v=snap.val();setTmpls(v?Object.entries(v).map(([id,d])=>({...d,id})):[]); });return()=>ref.off();},[]);
   const saveT=async()=>{if(!form.title.trim()){alert("請填寫名稱");return;}await dbPush("templates",{...form,deadline:form.deadline||null,createdBy:currentUser.uid,createdByName:currentUser.name,createdAt:Date.now()});setForm({title:"",detail:"",category:"clinic",priority:"normal",deadline:""});setShowAdd(false);};
   const delT=async id=>{if(!confirm("確定刪除？"))return;await dbDel("templates/"+id);};
   const doImp=async()=>{
@@ -366,22 +366,37 @@ function TmplMgr({currentUser,onUse}){
       </div>
     </div>}
     {!tmpls.length&&!showAdd&&!showImp&&<div style={{textAlign:"center",padding:"40px 20px",color:"#9CA3AF",fontSize:14}}>尚無範本</div>}
-    {tmpls.map(t=><div key={t.id} style={{background:"#fff",border:"0.5px solid #E5E7EB",borderRadius:10,padding:"12px 14px",marginBottom:8}}>
-      <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:8}}>
-        <div style={{flex:1}}>
-          <div style={{display:"flex",gap:6,marginBottom:5,flexWrap:"wrap"}}>
-            <Badge cat={t.category}/>{t.priority==="urgent"&&<Pill label="緊急" color="#991B1B" bg="#FEF2F2"/>}
-            {t.deadline&&<span style={{fontSize:11,color:"#9CA3AF",background:"#F3F4F6",borderRadius:8,padding:"2px 8px"}}>截止 {t.deadline}</span>}
+    {(()=>{
+      const catOrder=Object.keys(CATS);
+      const grouped={};
+      catOrder.forEach(k=>{grouped[k]=[];});
+      tmpls.forEach(t=>{const cat=CATS[t.category]?t.category:"admin";grouped[cat].push(t);});
+      return catOrder.filter(k=>grouped[k].length>0).map(catKey=>{
+        const c=CATS[catKey];
+        return<div key={catKey} style={{marginBottom:16}}>
+          <div style={{padding:"6px 12px",background:c.bg,borderRadius:8,marginBottom:8,display:"flex",alignItems:"center",gap:8}}>
+            <span style={{fontSize:13,fontWeight:700,color:c.c}}>{c.l}</span>
+            <span style={{fontSize:12,color:c.c,opacity:0.7}}>{grouped[catKey].length} 項</span>
           </div>
-          <div style={{fontSize:14,fontWeight:500,color:"#111"}}>{t.title}</div>
-          {t.detail&&<div style={{fontSize:12,color:"#9CA3AF",marginTop:3}}>{t.detail}</div>}
-        </div>
-        <div style={{display:"flex",gap:6,flexShrink:0}}>
-          {onUse&&<button onClick={()=>onUse(t)} style={{padding:"7px 12px",border:"none",borderRadius:8,background:PRIMARY,color:"#fff",fontSize:13,fontWeight:500}}>使用</button>}
-          <button onClick={()=>delT(t.id)} style={{padding:"7px 10px",border:"0.5px solid #FECACA",borderRadius:8,background:"#FEF2F2",color:"#991B1B",fontSize:13}}>刪</button>
-        </div>
-      </div>
-    </div>)}
+          {grouped[catKey].sort((a,b)=>a.title.localeCompare(b.title,"zh-TW")).map(t=><div key={t.id} style={{background:"#fff",border:"0.5px solid #E5E7EB",borderRadius:10,padding:"12px 14px",marginBottom:8}}>
+            <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:8}}>
+              <div style={{flex:1}}>
+                <div style={{display:"flex",gap:6,marginBottom:5,flexWrap:"wrap"}}>
+                  {t.priority==="urgent"&&<Pill label="緊急" color="#991B1B" bg="#FEF2F2"/>}
+                  {t.deadline&&<span style={{fontSize:11,color:"#9CA3AF",background:"#F3F4F6",borderRadius:8,padding:"2px 8px"}}>截止 {t.deadline}</span>}
+                </div>
+                <div style={{fontSize:14,fontWeight:500,color:"#111"}}>{t.title}</div>
+                {t.detail&&<div style={{fontSize:12,color:"#9CA3AF",marginTop:3}}>{t.detail}</div>}
+              </div>
+              <div style={{display:"flex",gap:6,flexShrink:0}}>
+                {onUse&&<button onClick={()=>onUse(t)} style={{padding:"7px 12px",border:"none",borderRadius:8,background:PRIMARY,color:"#fff",fontSize:13,fontWeight:500}}>使用</button>}
+                <button onClick={()=>delT(t.id)} style={{padding:"7px 10px",border:"0.5px solid #FECACA",borderRadius:8,background:"#FEF2F2",color:"#991B1B",fontSize:13}}>刪</button>
+              </div>
+            </div>
+          </div>)}
+        </div>;
+      });
+    })()
   </div>;
 }
 
