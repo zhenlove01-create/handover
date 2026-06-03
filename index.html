@@ -185,10 +185,12 @@ function TaskCard({task,currentUser,isManager,onConfirm,onComplete,onOverride,on
         {canAct&&onConfirm&&(task.status==="pending"||!task.status)&&<button onClick={()=>onConfirm(task.id,task)} style={{flex:1,padding:"10px",background:"#1E40AF",color:"#fff",border:"none",borderRadius:8,fontSize:14,fontWeight:500,minWidth:90}}>確認收到</button>}
         {canAct&&onComplete&&task.status==="confirmed"&&<button onClick={()=>onComplete(task.id,task)} style={{flex:1,padding:"10px",background:"#065F46",color:"#fff",border:"none",borderRadius:8,fontSize:14,fontWeight:500,minWidth:90}}>標記完成</button>}
         {isManager&&st==="overdue"&&onOverride&&!orMode&&<button onClick={()=>setOrMode(true)} style={{padding:"10px 14px",background:"#FEF3C7",color:"#92400E",border:"0.5px solid #FDE68A",borderRadius:8,fontSize:13}}>核准逾時</button>}
-
       </div>}
       {isFuture&&<div style={{padding:"8px 12px",background:"#F0F9FF",borderRadius:8,fontSize:13,color:"#075985"}}>此任務排定於 {fmtDate(td)} 執行</div>}
-      {isManager&&onCancel&&st!=="completed"&&st!=="cancelled"&&<div style={{marginTop:8}}><button onClick={()=>{if(!confirm("確定要取消這項任務？取消後將從清單中移除。"))return;onCancel(task.id,task);}} style={{padding:"10px 14px",background:"#FEF2F2",color:"#991B1B",border:"0.5px solid #FECACA",borderRadius:8,fontSize:13,width:"100%"}}>取消任務</button></div>}
+      {isManager&&onCancel&&st!=="completed"&&st!=="cancelled"&&<div style={{marginTop:8}}><button onClick={()=>{if(!confirm("確定要取消這項任務？"))return;onCancel(task.id,task);}} style={{width:"100%",padding:"10px",background:"#FEF2F2",color:"#991B1B",border:"0.5px solid #FECACA",borderRadius:8,fontSize:13}}>取消任務</button></div>}
+      {orMode&&<div
+      </div>}
+      {isFuture&&<div style={{padding:"8px 12px",background:"#F0F9FF",borderRadius:8,fontSize:13,color:"#075985"}}>此任務排定於 {fmtDate(td)} 執行</div>}
       {orMode&&<div style={{marginTop:10,background:"#FFFDE7",border:"0.5px solid #FDE68A",borderRadius:8,padding:12}}>
         <div style={{fontSize:13,fontWeight:500,color:"#92400E",marginBottom:8}}>核准原因（核准後不計入逾時比例）</div>
         <textarea value={reason} onChange={e=>setReason(e.target.value)} rows={2} style={{width:"100%",padding:"8px",border:"0.5px solid #FDE68A",borderRadius:6,fontSize:13,background:"#fff"}}/>
@@ -366,37 +368,32 @@ function TmplMgr({currentUser,onUse}){
       </div>
     </div>}
     {!tmpls.length&&!showAdd&&!showImp&&<div style={{textAlign:"center",padding:"40px 20px",color:"#9CA3AF",fontSize:14}}>尚無範本</div>}
-    {(()=>{
-      const catOrder=Object.keys(CATS);
-      const grouped={};
-      catOrder.forEach(k=>{grouped[k]=[];});
-      tmpls.forEach(t=>{const cat=CATS[t.category]?t.category:"admin";grouped[cat].push(t);});
-      return catOrder.filter(k=>grouped[k].length>0).map(catKey=>{
-        const c=CATS[catKey];
-        return<div key={catKey} style={{marginBottom:16}}>
-          <div style={{padding:"6px 12px",background:c.bg,borderRadius:8,marginBottom:8,display:"flex",alignItems:"center",gap:8}}>
-            <span style={{fontSize:13,fontWeight:700,color:c.c}}>{c.l}</span>
-            <span style={{fontSize:12,color:c.c,opacity:0.7}}>{grouped[catKey].length} 項</span>
-          </div>
-          {grouped[catKey].sort((a,b)=>a.title.localeCompare(b.title,"zh-TW")).map(t=><div key={t.id} style={{background:"#fff",border:"0.5px solid #E5E7EB",borderRadius:10,padding:"12px 14px",marginBottom:8}}>
-            <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:8}}>
-              <div style={{flex:1}}>
-                <div style={{display:"flex",gap:6,marginBottom:5,flexWrap:"wrap"}}>
-                  {t.priority==="urgent"&&<Pill label="緊急" color="#991B1B" bg="#FEF2F2"/>}
-                  {t.deadline&&<span style={{fontSize:11,color:"#9CA3AF",background:"#F3F4F6",borderRadius:8,padding:"2px 8px"}}>截止 {t.deadline}</span>}
-                </div>
-                <div style={{fontSize:14,fontWeight:500,color:"#111"}}>{t.title}</div>
-                {t.detail&&<div style={{fontSize:12,color:"#9CA3AF",marginTop:3}}>{t.detail}</div>}
+    {Object.keys(CATS).filter(ck=>tmpls.some(t=>(CATS[t.category]?t.category:"admin")===ck)).map(ck=>{
+      const cc=CATS[ck];
+      const ct=tmpls.filter(t=>(CATS[t.category]?t.category:"admin")===ck).sort((a,b)=>a.title.localeCompare(b.title,"zh-TW"));
+      return<div key={ck} style={{marginBottom:14}}>
+        <div style={{padding:"5px 10px",background:cc.bg,borderRadius:8,marginBottom:6,display:"flex",alignItems:"center",gap:6}}>
+          <span style={{fontSize:12,fontWeight:700,color:cc.c}}>{cc.l}</span>
+          <span style={{fontSize:11,color:cc.c,opacity:0.7}}>{ct.length}項</span>
+        </div>
+        {ct.map(t=><div key={t.id} style={{background:"#fff",border:"0.5px solid #E5E7EB",borderRadius:10,padding:"12px 14px",marginBottom:6}}>
+          <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:8}}>
+            <div style={{flex:1}}>
+              <div style={{display:"flex",gap:5,marginBottom:5,flexWrap:"wrap"}}>
+                {t.priority==="urgent"&&<Pill label="緊急" color="#991B1B" bg="#FEF2F2"/>}
+                {t.deadline&&<span style={{fontSize:11,color:"#9CA3AF",background:"#F3F4F6",borderRadius:8,padding:"2px 7px"}}>截止 {t.deadline}</span>}
               </div>
-              <div style={{display:"flex",gap:6,flexShrink:0}}>
-                {onUse&&<button onClick={()=>onUse(t)} style={{padding:"7px 12px",border:"none",borderRadius:8,background:PRIMARY,color:"#fff",fontSize:13,fontWeight:500}}>使用</button>}
-                <button onClick={()=>delT(t.id)} style={{padding:"7px 10px",border:"0.5px solid #FECACA",borderRadius:8,background:"#FEF2F2",color:"#991B1B",fontSize:13}}>刪</button>
-              </div>
+              <div style={{fontSize:14,fontWeight:500,color:"#111"}}>{t.title}</div>
+              {t.detail&&<div style={{fontSize:12,color:"#9CA3AF",marginTop:3}}>{t.detail}</div>}
             </div>
-          </div>)}
-        </div>;
-      });
-    })()
+            <div style={{display:"flex",gap:5,flexShrink:0}}>
+              {onUse&&<button onClick={()=>onUse(t)} style={{padding:"7px 10px",border:"none",borderRadius:8,background:PRIMARY,color:"#fff",fontSize:13,fontWeight:500}}>使用</button>}
+              <button onClick={()=>delT(t.id)} style={{padding:"7px 8px",border:"0.5px solid #FECACA",borderRadius:8,background:"#FEF2F2",color:"#991B1B",fontSize:13}}>刪</button>
+            </div>
+          </div>
+        </div>)}
+      </div>;
+    })}
   </div>;
 }
 
@@ -658,36 +655,19 @@ function HistoryView({allUsers}){
   const[loading,setLoading]=useState(false);
   const[catF,setCatF]=useState("all");
   const[stF,setStF]=useState("all");
-
-  const load=async(d)=>{
-    setLoading(true);
-    const v=await dbGet("tasks/"+d);
-    setTasks(v?Object.entries(v).map(([id,t])=>({...t,id})).sort((a,b)=>b.createdAt-a.createdAt):[]);
-    setLoading(false);
-  };
-
+  const load=async(d)=>{setLoading(true);const v=await dbGet("tasks/"+d);setTasks(v?Object.entries(v).map(([id,t])=>({...t,id})).sort((a,b)=>b.createdAt-a.createdAt):[]);setLoading(false);};
   useEffect(()=>{load(date);},[date]);
-
   const live=tasks.map(t=>({...t,_st:calcStatus(t)}));
   const filtered=live.filter(t=>(catF==="all"||t.category===catF)&&(stF==="all"||t._st===stF));
-
   const counts={total:tasks.length,completed:live.filter(t=>t._st==="completed").length,overdue:live.filter(t=>isOC(t)).length,approved:live.filter(t=>isMA(t)).length};
   const rate=counts.total?Math.round(counts.completed/counts.total*100):0;
-
-  const pill=(active,label,onClick,ac="#fff",bg=PRIMARY)=>(
-    <button onClick={onClick} style={{padding:"6px 12px",border:"0.5px solid "+(active?"transparent":"#D1D5DB"),borderRadius:16,fontSize:12,background:active?bg:"#fff",color:active?ac:"#6B7280",fontWeight:active?600:400,cursor:"pointer",fontFamily:"inherit"}}>{label}</button>
-  );
-
+  const pill=(active,label,onClick,ac="#fff",bg=PRIMARY)=><button onClick={onClick} style={{padding:"6px 12px",border:"0.5px solid "+(active?"transparent":"#D1D5DB"),borderRadius:16,fontSize:12,background:active?bg:"#fff",color:active?ac:"#6B7280",fontWeight:active?600:400,cursor:"pointer",fontFamily:"inherit"}}>{label}</button>;
   return<div>
     <div style={{fontSize:17,fontWeight:600,color:"#111",marginBottom:16}}>歷史記錄</div>
-
-    {/* 日期選擇 */}
     <div style={{background:"#fff",border:"0.5px solid #E5E7EB",borderRadius:10,padding:"12px 14px",marginBottom:14}}>
       <div style={{fontSize:13,fontWeight:500,color:"#6B7280",marginBottom:8}}>選擇日期</div>
       <input type="date" value={date} onChange={e=>{setDate(e.target.value);load(e.target.value);}} style={{width:"100%",padding:"9px 12px",border:"0.5px solid #D1D5DB",borderRadius:8,fontSize:15,background:"#fff",color:"#111",fontFamily:"inherit"}}/>
     </div>
-
-    {/* 統計摘要 */}
     {!loading&&tasks.length>0&&<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:14}}>
       {[{l:"總任務數",v:counts.total},{l:"完成率",v:rate+"%",c:rate>=80?PRIMARY:rate>=60?"#D97706":"#991B1B"},{l:"逾時後完成",v:counts.overdue,c:counts.overdue>0?"#D97706":undefined},{l:"主管核准",v:counts.approved,c:counts.approved>0?"#065F46":undefined}].map(i=>
         <div key={i.l} style={{background:"#fff",border:"0.5px solid #E5E7EB",borderRadius:10,padding:"12px 14px",textAlign:"center"}}>
@@ -696,26 +676,18 @@ function HistoryView({allUsers}){
         </div>
       )}
     </div>}
-
-    {/* 篩選 */}
     {!loading&&tasks.length>0&&<div style={{marginBottom:12}}>
       <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:8}}>
-        {[["all","全部狀態"],["overdue","逾時"],["pending","待確認"],["confirmed","執行中"],["completed","已完成"]].map(([k,l])=>
-          pill(stF===k,l,()=>setStF(k),"#fff",k==="overdue"?"#991B1B":k==="completed"?PRIMARY:k==="pending"?"#D97706":"#1E40AF")
-        )}
+        {[["all","全部狀態"],["overdue","逾時"],["pending","待確認"],["confirmed","執行中"],["completed","已完成"],["cancelled","已取消"]].map(([k,l])=>pill(stF===k,l,()=>setStF(k),"#fff",k==="overdue"?"#991B1B":k==="completed"?PRIMARY:k==="pending"?"#D97706":k==="cancelled"?"#6B7280":"#1E40AF"))}
       </div>
       <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
         {pill(catF==="all","所有部門",()=>setCatF("all"))}
         {Object.entries(CATS).map(([k,v])=>pill(catF===k,v.l,()=>setCatF(k),"#fff",v.c))}
       </div>
     </div>}
-
     {loading&&<div style={{textAlign:"center",padding:"40px 20px",color:"#9CA3AF",fontSize:14}}>載入中...</div>}
     {!loading&&tasks.length===0&&<div style={{textAlign:"center",padding:"40px 20px",color:"#9CA3AF"}}><div style={{fontSize:36,marginBottom:10}}>📋</div><div style={{fontSize:15,fontWeight:500,color:"#374151"}}>此日期無任務記錄</div></div>}
-
-    {/* 任務列表 */}
-    {!loading&&filtered.map(t=>{
-      const st=t._st;const s=ST[st]||ST.pending;
+    {!loading&&filtered.map(t=>{const st=t._st;const s=ST[st]||ST.pending;
       return<div key={t.id} style={{background:"#fff",border:"0.5px solid "+(st==="overdue"?"#FECACA":"#E5E7EB"),borderLeft:"3px solid "+s.dot,borderRadius:10,padding:"12px 14px",marginBottom:8}}>
         <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:8}}>
           <div style={{flex:1,minWidth:0}}>
@@ -725,14 +697,15 @@ function HistoryView({allUsers}){
               <span style={{display:"flex",alignItems:"center",gap:5,fontSize:12,color:s.c}}><span style={{width:7,height:7,borderRadius:"50%",background:s.dot,display:"inline-block"}}/>{s.l}</span>
               {isOC(t)&&<span style={{fontSize:11,fontWeight:600,padding:"2px 8px",borderRadius:10,background:"#FFFBEB",color:"#92400E"}}>⚠️ 逾時後完成</span>}
               {isMA(t)&&<span style={{fontSize:11,fontWeight:600,padding:"2px 8px",borderRadius:10,background:"#E8F5E9",color:"#1B5E20"}}>主管已核准</span>}
+              {st==="cancelled"&&<span style={{fontSize:11,fontWeight:600,padding:"2px 8px",borderRadius:10,background:"#F3F4F6",color:"#6B7280"}}>已取消</span>}
             </div>
             <div style={{fontSize:15,fontWeight:500,color:"#111",marginBottom:4}}>{t.title}</div>
-            {t.detail&&<div style={{fontSize:13,color:"#6B7280",marginBottom:4,lineHeight:1.5}}>{t.detail}</div>}
             <div style={{fontSize:12,color:"#9CA3AF",display:"flex",flexDirection:"column",gap:2}}>
               <span>指派給：{t.assignLabel}</span>
               <span>建立：{t.createdByName} · {fmtDt(t.createdAt)}</span>
               {t.confirmedByName&&<span>確認：{t.confirmedByName} · {fmtDt(t.confirmedAt)}</span>}
               {t.completedByName&&<span style={{color:isOC(t)?"#92400E":"#065F46",fontWeight:500}}>{isOC(t)?"⚠️ 逾時後完成":"完成"}：{t.completedByName} · {fmtDt(t.completedAt)}</span>}
+              {t.cancelledByName&&<span style={{color:"#6B7280"}}>取消：{t.cancelledByName} · {fmtDt(t.cancelledAt)}</span>}
               {t.overdueOverride&&<span style={{color:"#1B5E20"}}>核准：{t.overdueOverride.byName} — {t.overdueOverride.reason}</span>}
             </div>
           </div>
@@ -763,7 +736,7 @@ function MgrApp({cu,onSignOut}){
   },[]);
   const doCnf=(id,t)=>{const td=t.taskDate||t.date||todayKey();dbUpd("tasks/"+td+"/"+id,{status:"confirmed",confirmedBy:cu.uid,confirmedByName:cu.name,confirmedAt:Date.now()});};
   const doCmp=(id,t)=>{const td=t.taskDate||t.date||todayKey();const st=calcStatus(t);dbUpd("tasks/"+td+"/"+id,{status:"completed",completedBy:cu.uid,completedByName:cu.name,completedAt:Date.now(),overdueCompleted:st==="overdue"});};
-  const doOvr=(id,t,reason)=>{const td=t.taskDate||t.date||todayKey();dbUpd("tasks/"+td+"/"+id,{status:"completed",completedBy:cu.uid,completedByName:cu.name,completedAt:Date.now(),overdueCompleted:false,overdueOverride:{by:cu.uid,byName:cu.name,reason,at:Date.now()}});};
+  const doOvr=(id,t,reason)=>{const td=t.taskDate||t.date||todayKey();dbUpd("tasks/"+td+"/"+id,{status:"completed",completedBy:cu.uid,completedByName:cu.name,completedAt:Date.now(),overdueCompleted:false,overdueOverride:{by:cu.uid,byName:cu.name,reason,at:Date.now()}});  };
   const doCancel=(id,t)=>{const td=t.taskDate||t.date||todayKey();dbUpd("tasks/"+td+"/"+id,{status:"cancelled",cancelledBy:cu.uid,cancelledByName:cu.name,cancelledAt:Date.now()});};
   const live=tasks.filter(t=>calcStatus(t)!=="cancelled").map(t=>({...t,_st:calcStatus(t)}));
   const ov=live.filter(t=>t._st==="overdue"),pend=live.filter(t=>t._st==="pending"),conf=live.filter(t=>t._st==="confirmed"),done=live.filter(t=>t._st==="completed");
@@ -797,7 +770,6 @@ function MgrApp({cu,onSignOut}){
       {tab==="assign"&&<AssignView currentUser={cu} allUsers={users} onDone={()=>setTab("today")}/>}
       {tab==="schedule"&&<SchedMgr allUsers={users}/>}
       {tab==="stats"&&<StatsView isManager={true} currentUser={cu} allUsers={users}/>}
-      {tab==="history"&&<HistoryView allUsers={users}/>}
       {tab==="future"&&<div>
         <div style={{fontSize:17,fontWeight:600,color:"#111",marginBottom:4}}>未來排程</div>
         <div style={{fontSize:13,color:"#9CA3AF",marginBottom:14}}>未來 14 天內的所有已指派任務</div>
@@ -841,7 +813,7 @@ function StaffApp({cu,onSignOut}){
   const doCnf=(id,t)=>{const td=t.taskDate||t.date||todayKey();dbUpd("tasks/"+td+"/"+id,{status:"confirmed",confirmedBy:cu.uid,confirmedByName:cu.name,confirmedAt:Date.now()});};
   const doCmp=(id,t)=>{const td=t.taskDate||t.date||todayKey();const st=calcStatus(t);dbUpd("tasks/"+td+"/"+id,{status:"completed",completedBy:cu.uid,completedByName:cu.name,completedAt:Date.now(),overdueCompleted:st==="overdue"});};
   const myT=todayT.filter(t=>t.assignedUids&&!!t.assignedUids[cu.uid]&&calcStatus(t)!=="cancelled");
-  const myL=myT.map(t=>({...t,_st:calcStatus(t)}));const allL=todayT.map(t=>({...t,_st:calcStatus(t)}));
+  const myL=myT.map(t=>({...t,_st:calcStatus(t)}));const allL=todayT.filter(t=>calcStatus(t)!=="cancelled").map(t=>({...t,_st:calcStatus(t)}));
   const ovN=myL.filter(t=>t._st==="overdue").length,pN=myL.filter(t=>t._st==="pending").length;
   const tp={currentUser:cu,isManager:false,onConfirm:doCnf,onComplete:doCmp,onOverride:null};
   const futGrp={};futureT.forEach(t=>{const d=t.taskDate||t.date;if(!futGrp[d])futGrp[d]=[];futGrp[d].push(t);});
@@ -898,16 +870,8 @@ function App(){
   const[state,setState]=useState("loading");const[fbu,setFbu]=useState(null);const[cu,setCu]=useState(null);
   const params=new URLSearchParams(window.location.search);const kioskP=params.get("kiosk");
   if(kioskP&&CONFIG_READY)return<KioskView label={kioskP==="1F"?"1F 櫃台看板":kioskP==="2F"?"2F 櫃台看板":kioskP}/>;
-  // 凌晨自動刷新：每分鐘檢查，若日期已變更則重新載入
-  useEffect(()=>{
-    const savedDate=todayKey();
-    const midnightTimer=setInterval(()=>{
-      if(todayKey()!==savedDate){
-        window.location.reload();
-      }
-    },60000); // 每分鐘檢查一次
-    return()=>clearInterval(midnightTimer);
-  },[]);
+  useEffect(()=>{const s=todayKey();const t=setInterval(()=>{if(todayKey()!==s)window.location.reload();},60000);return()=>clearInterval(t);},[]);
+  useEffect(()=>{const savedDate=todayKey();const t=setInterval(()=>{if(todayKey()!==savedDate)window.location.reload();},60000);return()=>clearInterval(t);},[]);
   useEffect(()=>{
     if(!CONFIG_READY||!fbAuth){setState("unauth");return;}
     const unsub=fbAuth.onAuthStateChanged(async f=>{
