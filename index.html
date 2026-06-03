@@ -188,9 +188,6 @@ function TaskCard({task,currentUser,isManager,onConfirm,onComplete,onOverride,on
       </div>}
       {isFuture&&<div style={{padding:"8px 12px",background:"#F0F9FF",borderRadius:8,fontSize:13,color:"#075985"}}>此任務排定於 {fmtDate(td)} 執行</div>}
       {isManager&&onCancel&&st!=="completed"&&st!=="cancelled"&&<div style={{marginTop:8}}><button onClick={()=>{if(!confirm("確定要取消這項任務？"))return;onCancel(task.id,task);}} style={{width:"100%",padding:"10px",background:"#FEF2F2",color:"#991B1B",border:"0.5px solid #FECACA",borderRadius:8,fontSize:13}}>取消任務</button></div>}
-      {orMode&&<div
-      </div>}
-      {isFuture&&<div style={{padding:"8px 12px",background:"#F0F9FF",borderRadius:8,fontSize:13,color:"#075985"}}>此任務排定於 {fmtDate(td)} 執行</div>}
       {orMode&&<div style={{marginTop:10,background:"#FFFDE7",border:"0.5px solid #FDE68A",borderRadius:8,padding:12}}>
         <div style={{fontSize:13,fontWeight:500,color:"#92400E",marginBottom:8}}>核准原因（核准後不計入逾時比例）</div>
         <textarea value={reason} onChange={e=>setReason(e.target.value)} rows={2} style={{width:"100%",padding:"8px",border:"0.5px solid #FDE68A",borderRadius:6,fontSize:13,background:"#fff"}}/>
