@@ -43,7 +43,7 @@ if(CONFIG_READY){try{firebase.initializeApp(FIREBASE_CONFIG);db=firebase.databas
 const{useState,useEffect}=React;
 const PRIMARY="#0F6E56",MGR="#1A237E";
 const CATS={clinic:{l:"診所",c:"#991B1B",bg:"#FEF2F2"},hotel:{l:"旅館",c:"#92400E",bg:"#FFFBEB"},grooming:{l:"美容",c:"#5B21B6",bg:"#F5F3FF"},rehab:{l:"復健/泳池",c:"#075985",bg:"#F0F9FF"},cleaning:{l:"清潔",c:"#065F46",bg:"#ECFDF5"},admin:{l:"行政",c:"#374151",bg:"#F9FAFB"}};
-const ST={pending:{l:"待確認",c:"#92400E",dot:"#F59E0B"},confirmed:{l:"執行中",c:"#1E40AF",dot:"#3B82F6"},completed:{l:"已完成",c:"#065F46",dot:"#10B981"},overdue:{l:"逾時",c:"#991B1B",dot:"#EF4444"}};
+const ST={pending:{l:"待確認",c:"#92400E",dot:"#F59E0B"},confirmed:{l:"執行中",c:"#1E40AF",dot:"#3B82F6"},completed:{l:"已完成",c:"#065F46",dot:"#10B981"},overdue:{l:"逾時",c:"#991B1B",dot:"#EF4444"},cancelled:{l:"已取消",c:"#6B7280",dot:"#D1D5DB"}};
 const DAY_TW=["日","一","二","三","四","五","六"];
 const ASSIGN_OPTS=[{v:"shift_day",l:"早班全體"},{v:"shift_night",l:"晚班全體"},{v:"duty_day",l:"早班值日生"},{v:"duty_night",l:"晚班值日生"},{v:"person",l:"指定員工"},{v:"all",l:"所有人"}];
 
@@ -54,6 +54,7 @@ const fmtDate=d=>{const dt=new Date(d+"T00:00:00");return`${dt.getMonth()+1}/${d
 
 function calcStatus(t){
   if(!t)return"pending";
+  if(t.status==="cancelled")return"cancelled";
   if(t.status==="completed"||t.overdueOverride)return"completed";
   if(!t.deadline)return t.status||"pending";
   const td=t.taskDate||t.date||todayKey();
@@ -146,7 +147,7 @@ function SchedBar({sched,uid}){
 }
 
 // ── Task Card ──
-function TaskCard({task,currentUser,isManager,onConfirm,onComplete,onOverride}){
+function TaskCard({task,currentUser,isManager,onConfirm,onComplete,onOverride,onCancel}){
   const[open,setOpen]=useState(false);const[orMode,setOrMode]=useState(false);const[reason,setReason]=useState("");
   const st=calcStatus(task);const td=task.taskDate||task.date||todayKey();
   const isOwn=task.assignedUids&&!!task.assignedUids[currentUser?.uid];const canAct=isOwn||isManager;
@@ -184,6 +185,7 @@ function TaskCard({task,currentUser,isManager,onConfirm,onComplete,onOverride}){
         {canAct&&onConfirm&&(task.status==="pending"||!task.status)&&<button onClick={()=>onConfirm(task.id,task)} style={{flex:1,padding:"10px",background:"#1E40AF",color:"#fff",border:"none",borderRadius:8,fontSize:14,fontWeight:500,minWidth:90}}>確認收到</button>}
         {canAct&&onComplete&&task.status==="confirmed"&&<button onClick={()=>onComplete(task.id,task)} style={{flex:1,padding:"10px",background:"#065F46",color:"#fff",border:"none",borderRadius:8,fontSize:14,fontWeight:500,minWidth:90}}>標記完成</button>}
         {isManager&&st==="overdue"&&onOverride&&!orMode&&<button onClick={()=>setOrMode(true)} style={{padding:"10px 14px",background:"#FEF3C7",color:"#92400E",border:"0.5px solid #FDE68A",borderRadius:8,fontSize:13}}>核准逾時</button>}
+        {isManager&&onCancel&&st!=="completed"&&!orMode&&<button onClick={()=>{if(!confirm("確定要取消這項任務？取消後將從今日清單中移除。"))return;onCancel(task.id,task);}} style={{padding:"10px 14px",background:"#FEF2F2",color:"#991B1B",border:"0.5px solid #FECACA",borderRadius:8,fontSize:13}}>取消任務</button>}
       </div>}
       {isFuture&&<div style={{padding:"8px 12px",background:"#F0F9FF",borderRadius:8,fontSize:13,color:"#075985"}}>此任務排定於 {fmtDate(td)} 執行</div>}
       {orMode&&<div style={{marginTop:10,background:"#FFFDE7",border:"0.5px solid #FDE68A",borderRadius:8,padding:12}}>
@@ -746,9 +748,11 @@ function MgrApp({cu,onSignOut}){
   const doCnf=(id,t)=>{const td=t.taskDate||t.date||todayKey();dbUpd("tasks/"+td+"/"+id,{status:"confirmed",confirmedBy:cu.uid,confirmedByName:cu.name,confirmedAt:Date.now()});};
   const doCmp=(id,t)=>{const td=t.taskDate||t.date||todayKey();const st=calcStatus(t);dbUpd("tasks/"+td+"/"+id,{status:"completed",completedBy:cu.uid,completedByName:cu.name,completedAt:Date.now(),overdueCompleted:st==="overdue"});};
   const doOvr=(id,t,reason)=>{const td=t.taskDate||t.date||todayKey();dbUpd("tasks/"+td+"/"+id,{status:"completed",completedBy:cu.uid,completedByName:cu.name,completedAt:Date.now(),overdueCompleted:false,overdueOverride:{by:cu.uid,byName:cu.name,reason,at:Date.now()}});};
+  const doCancel=(id,t)=>{const td=t.taskDate||t.date||todayKey();dbUpd("tasks/"+td+"/"+id,{status:"cancelled",cancelledBy:cu.uid,cancelledByName:cu.name,cancelledAt:Date.now()});};
   const live=tasks.map(t=>({...t,_st:calcStatus(t)}));
+  const cancelled=live.filter(t=>t._st==="cancelled");
   const ov=live.filter(t=>t._st==="overdue"),pend=live.filter(t=>t._st==="pending"),conf=live.filter(t=>t._st==="confirmed"),done=live.filter(t=>t._st==="completed");
-  const tp={isManager:true,currentUser:cu,onConfirm:doCnf,onComplete:doCmp,onOverride:doOvr};
+  const tp={isManager:true,currentUser:cu,onConfirm:doCnf,onComplete:doCmp,onOverride:doOvr,onCancel:doCancel};
   const TABS=[{id:"today",icon:"◉",l:"今日"},{id:"assign",icon:"+",l:"指派"},{id:"future",icon:"🗓",l:"未來"},{id:"schedule",icon:"📅",l:"排班"},{id:"stats",icon:"📊",l:"分析"},{id:"history",icon:"🕐",l:"歷史"},{id:"more",icon:"⋯",l:"更多"}];
   return<div style={{maxWidth:520,margin:"0 auto",paddingBottom:70,minHeight:"100vh",background:"#F0F4F0"}}>
     {showSet&&<SettingsOverlay currentUser={cu} onClose={()=>setShowSet(false)}/>}
@@ -773,6 +777,7 @@ function MgrApp({cu,onSignOut}){
         <GS title="待確認" tasks={pend} accent="#F59E0B" {...tp}/>
         <GS title="執行中" tasks={conf} accent="#3B82F6" {...tp}/>
         <GS title="已完成" tasks={done} accent="#10B981" {...tp}/>
+        <GS title="已取消" tasks={cancelled} accent="#D1D5DB" {...tp}/>
         {!tasks.length&&<div style={{textAlign:"center",padding:"50px 20px",color:"#9CA3AF"}}><div style={{fontSize:36,marginBottom:10}}>📋</div><div style={{fontSize:15,fontWeight:500,color:"#374151"}}>今日尚無任務</div></div>}
       </div>}
       {tab==="assign"&&<AssignView currentUser={cu} allUsers={users} onDone={()=>setTab("today")}/>}
@@ -790,7 +795,7 @@ function MgrApp({cu,onSignOut}){
               <span>📅 {fmtDate(date)}</span>
               <span style={{fontSize:12,color:"#9CA3AF"}}>{ts.length} 項</span>
             </div>
-            {ts.map(t=><TaskCard key={t.id} task={t} currentUser={cu} isManager={true} onConfirm={doCnf} onComplete={doCmp} onOverride={doOvr}/>)}
+            {ts.map(t=><TaskCard key={t.id} task={t} currentUser={cu} isManager={true} onConfirm={doCnf} onComplete={doCmp} onOverride={doOvr} onCancel={doCancel}/>)}
           </div>);
         })()}
       </div>}
