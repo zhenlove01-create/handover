@@ -185,9 +185,10 @@ function TaskCard({task,currentUser,isManager,onConfirm,onComplete,onOverride,on
         {canAct&&onConfirm&&(task.status==="pending"||!task.status)&&<button onClick={()=>onConfirm(task.id,task)} style={{flex:1,padding:"10px",background:"#1E40AF",color:"#fff",border:"none",borderRadius:8,fontSize:14,fontWeight:500,minWidth:90}}>確認收到</button>}
         {canAct&&onComplete&&task.status==="confirmed"&&<button onClick={()=>onComplete(task.id,task)} style={{flex:1,padding:"10px",background:"#065F46",color:"#fff",border:"none",borderRadius:8,fontSize:14,fontWeight:500,minWidth:90}}>標記完成</button>}
         {isManager&&st==="overdue"&&onOverride&&!orMode&&<button onClick={()=>setOrMode(true)} style={{padding:"10px 14px",background:"#FEF3C7",color:"#92400E",border:"0.5px solid #FDE68A",borderRadius:8,fontSize:13}}>核准逾時</button>}
-        {isManager&&onCancel&&st!=="completed"&&!orMode&&<button onClick={()=>{if(!confirm("確定要取消這項任務？取消後將從今日清單中移除。"))return;onCancel(task.id,task);}} style={{padding:"10px 14px",background:"#FEF2F2",color:"#991B1B",border:"0.5px solid #FECACA",borderRadius:8,fontSize:13}}>取消任務</button>}
+
       </div>}
       {isFuture&&<div style={{padding:"8px 12px",background:"#F0F9FF",borderRadius:8,fontSize:13,color:"#075985"}}>此任務排定於 {fmtDate(td)} 執行</div>}
+      {isManager&&onCancel&&st!=="completed"&&st!=="cancelled"&&<div style={{marginTop:8}}><button onClick={()=>{if(!confirm("確定要取消這項任務？取消後將從清單中移除。"))return;onCancel(task.id,task);}} style={{padding:"10px 14px",background:"#FEF2F2",color:"#991B1B",border:"0.5px solid #FECACA",borderRadius:8,fontSize:13,width:"100%"}}>取消任務</button></div>}
       {orMode&&<div style={{marginTop:10,background:"#FFFDE7",border:"0.5px solid #FDE68A",borderRadius:8,padding:12}}>
         <div style={{fontSize:13,fontWeight:500,color:"#92400E",marginBottom:8}}>核准原因（核准後不計入逾時比例）</div>
         <textarea value={reason} onChange={e=>setReason(e.target.value)} rows={2} style={{width:"100%",padding:"8px",border:"0.5px solid #FDE68A",borderRadius:6,fontSize:13,background:"#fff"}}/>
