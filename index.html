@@ -887,7 +887,38 @@ function App(){
   if(state==="authed"&&cu)return cu.role==="manager"?<MgrApp cu={cu} onSignOut={signOut}/>:<StaffApp cu={cu} onSignOut={signOut}/>;
   return null;
 }
-ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+// ===== 診斷版 render =====
+(function(){
+  var box=document.getElementById("root");
+  var log=function(msg,color){
+    var d=document.createElement("div");
+    d.style.cssText="font-family:monospace;font-size:14px;padding:10px 16px;margin:4px;border-radius:6px;background:"+(color||"#F3F4F6")+";color:#111;white-space:pre-wrap;line-height:1.6";
+    d.textContent=msg;
+    box.appendChild(d);
+  };
+  try{
+    log("① 程式碼有執行到 render 階段","#D1FAE5");
+    log("② React 是否載入:"+(typeof React!=="undefined"?"是 ✓":"否 ✗ React=undefined"),(typeof React!=="undefined"?"#D1FAE5":"#FEE2E2"));
+    log("③ ReactDOM 是否載入:"+(typeof ReactDOM!=="undefined"?"是 ✓":"否 ✗ ReactDOM=undefined"),(typeof ReactDOM!=="undefined"?"#D1FAE5":"#FEE2E2"));
+    log("④ ReactDOM.createRoot 是否存在:"+(typeof ReactDOM!=="undefined"&&typeof ReactDOM.createRoot==="function"?"是 ✓":"否 ✗"),(typeof ReactDOM!=="undefined"&&typeof ReactDOM.createRoot==="function"?"#D1FAE5":"#FEE2E2"));
+    log("⑤ firebase 是否載入:"+(typeof firebase!=="undefined"?"是 ✓":"否 ✗"),(typeof firebase!=="undefined"?"#D1FAE5":"#FEE2E2"));
+    log("⑥ CONFIG_READY:"+(typeof CONFIG_READY!=="undefined"?String(CONFIG_READY):"undefined"));
+    log("⑦ db 是否建立:"+(typeof db!=="undefined"&&db?"是 ✓":"否 ✗ db=null"),(typeof db!=="undefined"&&db?"#D1FAE5":"#FEE2E2"));
+    log("⑧ fbAuth 是否建立:"+(typeof fbAuth!=="undefined"&&fbAuth?"是 ✓":"否 ✗ fbAuth=null"),(typeof fbAuth!=="undefined"&&fbAuth?"#D1FAE5":"#FEE2E2"));
+    log("⑨ 嘗試實際 render App...","#FEF3C7");
+    var testBox=document.createElement("div");
+    document.body.appendChild(testBox);
+    ReactDOM.createRoot(testBox).render(React.createElement(App));
+    setTimeout(function(){
+      log("⑩ render 後 1 秒,測試容器內容長度:"+testBox.innerHTML.length+(testBox.innerHTML.length>0?" ✓ 有畫面!":" ✗ 仍是空的"),(testBox.innerHTML.length>0?"#D1FAE5":"#FEE2E2"));
+      if(testBox.innerHTML.length>0){
+        log("結論:App 其實能 render!問題可能在原本掛載時序。","#D1FAE5");
+      }
+    },1000);
+  }catch(e){
+    log("✗✗ 捕捉到錯誤:"+e.message+"\n\n"+(e.stack||""),"#FEE2E2");
+  }
+})();
 </script>
 </body>
 </html>
