@@ -19,7 +19,7 @@ textarea{resize:vertical}
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.production.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@babel/standalone@7.24.7/babel.min.js"></script>
 <script>
 const FIREBASE_CONFIG={
   apiKey:"AIzaSyBgk1HldJWelo6PIEmyS9SX3P6OYYHCB4Y",
@@ -39,7 +39,7 @@ const CONFIG_READY=!Object.values(FIREBASE_CONFIG).some(v=>v.startsWith("貼上"
 let db=null,fbAuth=null;
 if(CONFIG_READY){try{firebase.initializeApp(FIREBASE_CONFIG);db=firebase.database();fbAuth=firebase.auth();}catch(e){console.error(e);}}
 </script>
-<script type="text/babel">
+<script type="text/babel" data-presets="react" data-type="script">
 const{useState,useEffect}=React;
 const PRIMARY="#0F6E56",MGR="#1A237E";
 const CATS={clinic:{l:"診所",c:"#991B1B",bg:"#FEF2F2"},hotel:{l:"旅館",c:"#92400E",bg:"#FFFBEB"},grooming:{l:"美容",c:"#5B21B6",bg:"#F5F3FF"},rehab:{l:"復健/泳池",c:"#075985",bg:"#F0F9FF"},cleaning:{l:"清潔",c:"#065F46",bg:"#ECFDF5"},admin:{l:"行政",c:"#374151",bg:"#F9FAFB"}};
