@@ -39,7 +39,7 @@ const CONFIG_READY=!Object.values(FIREBASE_CONFIG).some(v=>v.startsWith("貼上"
 let db=null,fbAuth=null;
 if(CONFIG_READY){try{firebase.initializeApp(FIREBASE_CONFIG);db=firebase.database();fbAuth=firebase.auth();}catch(e){console.error(e);}}
 </script>
-<script type="text/babel" data-presets="react" data-type="script">
+<script type="text/babel">
 const{useState,useEffect}=React;
 const PRIMARY="#0F6E56",MGR="#1A237E";
 const CATS={clinic:{l:"診所",c:"#991B1B",bg:"#FEF2F2"},hotel:{l:"旅館",c:"#92400E",bg:"#FFFBEB"},grooming:{l:"美容",c:"#5B21B6",bg:"#F5F3FF"},rehab:{l:"復健/泳池",c:"#075985",bg:"#F0F9FF"},cleaning:{l:"清潔",c:"#065F46",bg:"#ECFDF5"},admin:{l:"行政",c:"#374151",bg:"#F9FAFB"}};
@@ -867,7 +867,9 @@ function StaffApp({cu,onSignOut}){
 function App(){
   const[state,setState]=useState("loading");const[fbu,setFbu]=useState(null);const[cu,setCu]=useState(null);
   const params=new URLSearchParams(window.location.search);const kioskP=params.get("kiosk");
+  if(kioskP&&CONFIG_READY)return<KioskView label={kioskP==="1F"?"1F 櫃台看板":kioskP==="2F"?"2F 櫃台看板":kioskP}/>;
   useEffect(()=>{const s=todayKey();const t=setInterval(()=>{if(todayKey()!==s)window.location.reload();},60000);return()=>clearInterval(t);},[]);
+  useEffect(()=>{const savedDate=todayKey();const t=setInterval(()=>{if(todayKey()!==savedDate)window.location.reload();},60000);return()=>clearInterval(t);},[]);
   useEffect(()=>{
     if(!CONFIG_READY||!fbAuth){setState("unauth");return;}
     const unsub=fbAuth.onAuthStateChanged(async f=>{
@@ -879,7 +881,6 @@ function App(){
     return()=>unsub();
   },[]);
   const signOut=()=>fbAuth.signOut();
-  if(kioskP&&CONFIG_READY)return<KioskView label={kioskP==="1F"?"1F 櫃台看板":kioskP==="2F"?"2F 櫃台看板":kioskP}/>;
   if(!CONFIG_READY)return<SetupView/>;
   if(state==="loading")return<div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",flexDirection:"column",gap:12}}><div style={{fontSize:40}}>🐾</div><div style={{fontSize:14,color:"#9CA3AF"}}>載入中...</div></div>;
   if(state==="unauth")return<LoginView/>;
@@ -887,38 +888,7 @@ function App(){
   if(state==="authed"&&cu)return cu.role==="manager"?<MgrApp cu={cu} onSignOut={signOut}/>:<StaffApp cu={cu} onSignOut={signOut}/>;
   return null;
 }
-// ===== 診斷版 render =====
-(function(){
-  var box=document.getElementById("root");
-  var log=function(msg,color){
-    var d=document.createElement("div");
-    d.style.cssText="font-family:monospace;font-size:14px;padding:10px 16px;margin:4px;border-radius:6px;background:"+(color||"#F3F4F6")+";color:#111;white-space:pre-wrap;line-height:1.6";
-    d.textContent=msg;
-    box.appendChild(d);
-  };
-  try{
-    log("① 程式碼有執行到 render 階段","#D1FAE5");
-    log("② React 是否載入:"+(typeof React!=="undefined"?"是 ✓":"否 ✗ React=undefined"),(typeof React!=="undefined"?"#D1FAE5":"#FEE2E2"));
-    log("③ ReactDOM 是否載入:"+(typeof ReactDOM!=="undefined"?"是 ✓":"否 ✗ ReactDOM=undefined"),(typeof ReactDOM!=="undefined"?"#D1FAE5":"#FEE2E2"));
-    log("④ ReactDOM.createRoot 是否存在:"+(typeof ReactDOM!=="undefined"&&typeof ReactDOM.createRoot==="function"?"是 ✓":"否 ✗"),(typeof ReactDOM!=="undefined"&&typeof ReactDOM.createRoot==="function"?"#D1FAE5":"#FEE2E2"));
-    log("⑤ firebase 是否載入:"+(typeof firebase!=="undefined"?"是 ✓":"否 ✗"),(typeof firebase!=="undefined"?"#D1FAE5":"#FEE2E2"));
-    log("⑥ CONFIG_READY:"+(typeof CONFIG_READY!=="undefined"?String(CONFIG_READY):"undefined"));
-    log("⑦ db 是否建立:"+(typeof db!=="undefined"&&db?"是 ✓":"否 ✗ db=null"),(typeof db!=="undefined"&&db?"#D1FAE5":"#FEE2E2"));
-    log("⑧ fbAuth 是否建立:"+(typeof fbAuth!=="undefined"&&fbAuth?"是 ✓":"否 ✗ fbAuth=null"),(typeof fbAuth!=="undefined"&&fbAuth?"#D1FAE5":"#FEE2E2"));
-    log("⑨ 嘗試實際 render App...","#FEF3C7");
-    var testBox=document.createElement("div");
-    document.body.appendChild(testBox);
-    ReactDOM.createRoot(testBox).render(React.createElement(App));
-    setTimeout(function(){
-      log("⑩ render 後 1 秒,測試容器內容長度:"+testBox.innerHTML.length+(testBox.innerHTML.length>0?" ✓ 有畫面!":" ✗ 仍是空的"),(testBox.innerHTML.length>0?"#D1FAE5":"#FEE2E2"));
-      if(testBox.innerHTML.length>0){
-        log("結論:App 其實能 render!問題可能在原本掛載時序。","#D1FAE5");
-      }
-    },1000);
-  }catch(e){
-    log("✗✗ 捕捉到錯誤:"+e.message+"\n\n"+(e.stack||""),"#FEE2E2");
-  }
-})();
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
 </script>
 </body>
 </html>
