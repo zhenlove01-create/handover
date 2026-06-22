@@ -888,7 +888,39 @@ function App(){
   if(state==="authed"&&cu)return cu.role==="manager"?<MgrApp cu={cu} onSignOut={signOut}/>:<StaffApp cu={cu} onSignOut={signOut}/>;
   return null;
 }
-ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+// ===== 診斷版 render(找出前天起白屏的原因)=====
+(function(){
+  var box=document.getElementById("root");
+  var log=function(msg,color){
+    var d=document.createElement("div");
+    d.style.cssText="font-family:monospace;font-size:14px;padding:10px 16px;margin:4px;border-radius:6px;background:"+(color||"#F3F4F6")+";color:#111;white-space:pre-wrap;line-height:1.6";
+    d.textContent=msg;
+    box.appendChild(d);
+  };
+  var ok="#D1FAE5",bad="#FEE2E2",warn="#FEF3C7";
+  try{
+    log("① babel script 有執行 ✓",ok);
+    log("② React: "+(typeof React!=="undefined"?"載入 ✓ (版本 "+(React.version||"?")+")":"未載入 ✗"),(typeof React!=="undefined"?ok:bad));
+    log("③ ReactDOM: "+(typeof ReactDOM!=="undefined"?"載入 ✓":"未載入 ✗"),(typeof ReactDOM!=="undefined"?ok:bad));
+    log("④ ReactDOM.createRoot: "+(typeof ReactDOM!=="undefined"&&typeof ReactDOM.createRoot==="function"?"存在 ✓":"不存在 ✗"),(typeof ReactDOM!=="undefined"&&typeof ReactDOM.createRoot==="function"?ok:bad));
+    log("⑤ firebase: "+(typeof firebase!=="undefined"?"載入 ✓":"未載入 ✗ (Firebase CDN 可能掛了!)"),(typeof firebase!=="undefined"?ok:bad));
+    log("⑥ firebase.initializeApp: "+(typeof firebase!=="undefined"&&typeof firebase.initializeApp==="function"?"存在 ✓":"不存在 ✗"),(typeof firebase!=="undefined"&&typeof firebase.initializeApp==="function"?ok:bad));
+    log("⑦ firebase.database: "+(typeof firebase!=="undefined"&&typeof firebase.database==="function"?"存在 ✓":"不存在 ✗"),(typeof firebase!=="undefined"&&typeof firebase.database==="function"?ok:bad));
+    log("⑧ firebase.auth: "+(typeof firebase!=="undefined"&&typeof firebase.auth==="function"?"存在 ✓":"不存在 ✗"),(typeof firebase!=="undefined"&&typeof firebase.auth==="function"?ok:bad));
+    log("⑨ CONFIG_READY: "+(typeof CONFIG_READY!=="undefined"?String(CONFIG_READY):"undefined"));
+    log("⑩ db: "+(typeof db!=="undefined"&&db?"已建立 ✓":"null ✗"),(typeof db!=="undefined"&&db?ok:bad));
+    log("⑪ fbAuth: "+(typeof fbAuth!=="undefined"&&fbAuth?"已建立 ✓":"null ✗"),(typeof fbAuth!=="undefined"&&fbAuth?ok:bad));
+    log("⑫ 嘗試實際 render App...",warn);
+    var tb=document.createElement("div");document.body.appendChild(tb);
+    ReactDOM.createRoot(tb).render(React.createElement(App));
+    setTimeout(function(){
+      var len=tb.innerHTML.length;
+      log("⑬ render 1 秒後內容長度: "+len+(len>0?" → App 能正常顯示 ✓":" → App 仍空白 ✗"),(len>0?ok:bad));
+    },1200);
+  }catch(e){
+    log("✗✗ 捕捉到錯誤:\n"+e.message+"\n\n堆疊:\n"+(e.stack||"(無)"),bad);
+  }
+})();
 </script>
 </body>
 </html>
